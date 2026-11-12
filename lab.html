@@ -76,6 +76,22 @@
   .btn:hover { background: rgba(255,255,255,.08); }
   .btn.on { border-color: var(--mint); color: var(--mint); background: rgba(110,242,192,.08); }
   .divider { height: 1px; background: var(--line); margin: 2px 0; }
+  .matrix-wrap { background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 12px; padding: 8px 9px; }
+  .matrix-title { font-size: 10px; letter-spacing: .08em; color: var(--dim); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .matrix-title small { color: rgba(142,163,194,.7); letter-spacing: 0; }
+  .matrix { display: grid; gap: 2px; }
+  .mx-corner { width: 18px; }
+  .mx-head { display: grid; place-items: center; }
+  .mx-head i { width: 9px; height: 9px; border-radius: 3px; display: block; }
+  .mx-cell {
+    display: grid; place-items: center; height: 23px; border-radius: 4px;
+    font-size: 8.5px; font-weight: 700; color: rgba(245,250,255,.9);
+    font-variant-numeric: tabular-nums;
+  }
+  .mx-cell.diag { outline: 1px solid rgba(255,255,255,.35); outline-offset: -1px; }
+  .matrix-legend { display: flex; justify-content: space-between; margin-top: 6px; font-size: 9px; color: var(--dim); }
+  .matrix-legend .pos { color: #ffcf85; }
+  .matrix-legend .neg { color: #9db6ff; }
   .srow { display: grid; grid-template-columns: 78px 1fr 46px; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); }
   .srow b { color: var(--text); font-size: 10px; text-align: right; font-variant-numeric: tabular-nums; }
   input[type=range] {
@@ -163,15 +179,20 @@
   <aside class="panel" id="panel">
     <div>
       <h1>Particle Lab</h1>
-      <p class="lead">吸引行列と数値をいじると、粒の群れの生態系が変わります。<br>
-        「🎲 ランダム化」で、単細胞生物がうようよする世界を眺めてみよう。</p>
+      <p class="lead">吸引行列（引力・斥力の表）をいじると、粒の群れの生態系が変わります。<br>
+        🎲 は原作と同じく「行列の全マスを -1〜1 の乱数で置き換える」だけ。粒の数や速度は変わりません。</p>
     </div>
-    <button class="dice-btn" id="dice-btn">🎲 数値をランダム化</button>
+    <button class="dice-btn" id="dice-btn">🎲 引力・斥力をランダム化（原作準拠）</button>
     <div class="presets">
       <button class="preset" data-id="himo">ひも状</button>
       <button class="preset" data-id="whirl">渦ワルツ</button>
       <button class="preset" data-id="chase">循環追跡</button>
-      <button class="preset" data-id="random">ランダム</button>
+      <button class="preset" data-id="random">ランダム変異</button>
+    </div>
+    <div class="matrix-wrap">
+      <div class="matrix-title">引力・斥力の表 <small>行 ← 列 が受ける力</small></div>
+      <div class="matrix" id="matrix"></div>
+      <div class="matrix-legend"><span class="pos">＋ 引力</span><span class="neg">− 斥力</span><span>🎲で全マスが一様乱数になる</span></div>
     </div>
     <div class="row">
       <button class="btn" id="perturb-btn">摂動モード</button>
@@ -273,8 +294,8 @@
       K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'himo',
     },
     random: {
-      id: 'random', label: 'ランダム', emoji: '🎲',
-      desc: '毎回ちがう吸引行列。何が生まれるかはお楽しみ',
+      id: 'random', label: 'ランダム変異', emoji: '🌀',
+      desc: 'ひも状をベースに行列をゆらす。毎回ちがう群れになる',
       K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'jitter', random: true,
     },
     chase: {
@@ -920,12 +941,13 @@
   }
 
   /* ---------- シミュレーション --------------------------------- */
+  function round2(v) { return Math.round(v * 100) / 100; }
+
+  /** 原作の 🎲 と同じ: 行列の全セルを -1〜1 の一様乱数で置き換える */
   function randomMatrix(K) {
     var M = new Float32Array(K * K);
     for (var i = 0; i < K; i++) {
-      for (var j = 0; j < K; j++) {
-        M[i * K + j] = i === j ? 0.1 + Math.random() * 0.6 : (Math.random() * 2 - 1);
-      }
+      for (var j = 0; j < K; j++) M[i * K + j] = round2(Math.random() * 2 - 1);
     }
     return M;
   }
@@ -934,6 +956,7 @@
     var preset = makePreset('random', (Math.random() * 1e9) >>> 0);
     if (resetMatrix || !state.matrix || state.matrix.length !== state.K * state.K) {
       state.matrix = randomMatrix(state.K);
+      buildMatrixUI();
     }
     var p = state.params;
     state.sim = new ParticleLife({
@@ -952,29 +975,55 @@
     state.N = Math.max(1000, Math.min(6000, state.N));
     syncSliders();
     buildSim(false);
+    buildMatrixUI();
     toast('「' + p.label + '」に切り替え');
   }
 
-  /* ---------- 操作 ------------------------------------------- */
-  function randomizeAll() {
+  /* ---------- 行列の可視化 ----------------------------------- */
+  function cellColor(v) {
+    // + 引力: 暖色 / - 斥力: 寒色
+    if (v >= 0) {
+      var a = 0.10 + Math.min(1, v) * 0.50;
+      return 'rgba(255,196,110,' + a.toFixed(2) + ')';
+    }
+    var b = 0.10 + Math.min(1, -v) * 0.50;
+    return 'rgba(120,150,255,' + b.toFixed(2) + ')';
+  }
+
+  function buildMatrixUI() {
+    var host = $('matrix');
+    if (!host) return;
     var K = state.K;
-    var M = new Float32Array(K * K);
+    var sp = COLORS.length;
+    host.style.gridTemplateColumns = '18px repeat(' + K + ', 1fr)';
+    var html = '';
+    // ヘッダー行
+    html += '<div class="mx-corner"></div>';
+    for (var j = 0; j < K; j++) {
+      var cj = COLORS[j % sp];
+      html += '<div class="mx-head"><i style="background:rgb(' + cj[0] + ',' + cj[1] + ',' + cj[2] + ')"></i></div>';
+    }
     for (var i = 0; i < K; i++) {
-      for (var j = 0; j < K; j++) {
-        M[i * K + j] = i === j ? 0.05 + Math.random() * 0.75 : (Math.random() * 2 - 1);
+      var ci = COLORS[i % sp];
+      html += '<div class="mx-head"><i style="background:rgb(' + ci[0] + ',' + ci[1] + ',' + ci[2] + ')"></i></div>';
+      for (var j2 = 0; j2 < K; j2++) {
+        var v = state.matrix ? state.matrix[i * K + j2] : 0;
+        var txt = (v >= 0 ? '+' : '') + v.toFixed(1);
+        html += '<div class="mx-cell' + (i === j2 ? ' diag' : '') + '" style="background:' + cellColor(v) + '">' + txt + '</div>';
       }
     }
-    state.matrix = M;
-    // 数値も少しランダムに
-    state.params.F = 0.3 + Math.random() * 0.6;
-    state.params.beta = 0.2 + Math.random() * 0.25;
-    state.params.dt = 0.015 + Math.random() * 0.02;
-    state.params.rmax = 0.04 + Math.random() * 0.03;
-    state.params.half = 0.04 + Math.random() * 0.05;
-    syncSliders();
-    buildSim(false);
+    host.innerHTML = html;
+  }
+
+  /* ---------- 操作 ------------------------------------------- */
+  /** 原作準拠: 行列だけランダム化。粒・パラメータはそのまま */
+  function randomizeAll() {
+    var K = state.K;
+    state.matrix = randomMatrix(K);
+    if (state.sim) state.sim.setMatrix(state.matrix, K);
+    buildMatrixUI();
     state.flash = 0.5;
-    toast('数値をランダム化した — 何が生まれる？');
+    toast('引力・斥力をランダム化した（数値はそのまま）');
   }
 
   function resetParticles() {
@@ -1095,6 +1144,7 @@
       state.perturbTick += dt;
       if (state.perturbTick > 0.4) {
         state.perturbTick = 0;
+        buildMatrixUI();
         for (var n = 0; n < 2; n++) {
           var i = Math.floor(Math.random() * state.K);
           var j = Math.floor(Math.random() * state.K);
@@ -1336,6 +1386,7 @@
     bindInput();
     buildSim(true);
     syncSliders();
+    buildMatrixUI();
     state.last = performance.now();
     window.__lab = { state: state, randomizeAll: randomizeAll, explode: explode };
     requestAnimationFrame(loop);
