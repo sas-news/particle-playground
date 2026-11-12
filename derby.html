@@ -27,6 +27,8 @@
     -webkit-tap-highlight-color: transparent;
   }
   #app { position: fixed; inset: 0; }
+  #app.overlay .hud, #app.overlay .panel, #app.overlay .panel-toggle { opacity: 0; pointer-events: none; }
+  .hud, .panel, .panel-toggle { transition: opacity .25s ease; }
   #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
   /* ---------- 上部HUD ---------- */
@@ -58,8 +60,8 @@
     padding: 14px 16px 16px;
     display: flex; flex-direction: column; gap: 8px; overflow-y: auto;
   }
-  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .panel-title { font-size: 11px; letter-spacing: .18em; color: var(--dim); }
+  .panel-head { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  .panel-title { font-size: 11px; letter-spacing: .18em; color: var(--dim); white-space: nowrap; }
   .panel-title b { color: var(--text); letter-spacing: .04em; font-size: 13px; }
   .panel-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .chip-btn {
@@ -251,9 +253,9 @@
     <div class="brand">PARTICLE DERBY<b>生き残り予想</b></div>
     <div class="race-ind">RACE <b id="race-num">1</b> / 3</div>
     <div class="hud-center">
-      <div class="hud-line"><span id="phase-label">培養中</span><span id="phase-timer">5.0</span></div>
+      <div class="hud-line"><span id="phase-label">培養</span><span id="phase-timer">5.0</span></div>
       <div class="phase-bar2"><i id="phase-bar"></i></div>
-      <div id="phase-sub">群れが生まれるのを待っています</div>
+      <div id="phase-sub">群れが生まれています</div>
     </div>
     <div class="chips">CHIPS<b id="chips">100</b></div>
   </div>
@@ -263,32 +265,31 @@
 
   <div class="panel" id="panel">
     <div class="panel-head">
-      <div class="panel-title" id="panel-title"><b>出馬表</b> — どの群れが生き残る？</div>
+      <div class="panel-title" id="panel-title"><b>出馬表</b></div>
       <div class="panel-tools" id="panel-tools"></div>
     </div>
     <div class="cand-row" id="cand-row"></div>
     <div class="stand-row" id="stand-row" style="display:none"></div>
-    <div class="empty-note" id="panel-note">培養中… 群れができてきたら出馬表が出ます。</div>
+    <div class="empty-note" id="panel-note">群れが生まれるのを待っています。</div>
   </div>
 
   <div class="screen" id="intro-screen">
     <div class="inner">
-      <div class="kicker">Particle Life × Prediction</div>
+      <div class="kicker">Prediction</div>
       <h1>Particle Derby</h1>
-      <p class="sub">ランダムに生まれた生態系のなかから、<br>「最後にいちばん大きくなる群れ」を予想するレース。</p>
+      <p class="sub">最後にいちばん大きくなる群れを予想する。</p>
       <div class="steps">
-        <div class="step"><b>① 培養</b><span>ランダムな行列から、粒の群れが自然に生まれます。</span></div>
-        <div class="step"><b>② 出馬表（盤面停止）</b><span>5つの群れに番号がつきます。💥の予告位置・矢印の向き・オッズを見て、チップを賭ける。</span></div>
-        <div class="step"><b>③ レース</b><span>雷撃・大爆発・突然変異。予想が当たれば配当。</span></div>
+        <div class="step"><b>① 培養</b><span>群れが生まれる。</span></div>
+        <div class="step"><b>② 出馬表</b><span>オッズを見て、チップを賭ける。</span></div>
+        <div class="step"><b>③ レース</b><span>大爆発と突然変異を越えて、結果へ。</span></div>
       </div>
       <p class="sub" style="font-size:11px; margin:10px 0 0;">
-        操作は「賭ける」だけ。群れを動かすことはできません。<br>
-        雷は「そのときのトップ」に落ちるので、オッズ通りにはいかないことも。
+        賭けはカードをタップ → レース開始で確定。当たれば 賭け×オッズ。
       </p>
-      <button class="start-btn" id="start-btn">レースをはじめる</button>
+      <button class="start-btn" id="start-btn">はじめる</button>
       <div class="credit">
-        <a href="index.html">← ほかのモードへ</a> ／
-        <a href="https://cerevisiae-fii.github.io/particle-life/" target="_blank" rel="noopener">inspired by Particle Life</a>
+        <a href="index.html">← ほかのモード</a> ／
+        <a href="https://cerevisiae-fii.github.io/particle-life/" target="_blank" rel="noopener">Particle Life</a>
       </div>
     </div>
   </div>
@@ -374,27 +375,27 @@
   var PRESETS = {
     himo: {
       id: 'himo', label: 'ひも状', emoji: '〜',
-      desc: '色が数珠つなぎになった、ウネウネのヒモができる',
+      desc: '色が数珠つなぎになる',
       K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'himo',
     },
     random: {
       id: 'random', label: 'ランダム変異', emoji: '🌀',
-      desc: 'ひも状をベースに行列をゆらす。毎回ちがう群れになる',
+      desc: '行列をゆらして変化させる',
       K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'jitter', random: true,
     },
     chase: {
       id: 'chase', label: '循環追跡', emoji: '🏃',
-      desc: '追う・逃げるが連鎖して、生き物みたいに動き続ける',
+      desc: '追う・逃げるの連鎖',
       K: 6, params: { rmax: 0.055, half: 0.05, F: 0.4, beta: 0.3 }, fn: 'chase',
     },
     whirl: {
       id: 'whirl', label: '渦ワルツ', emoji: '🌀',
-      desc: '渦を巻くように回りながら群れる',
+      desc: '渦を巻いて回る',
       K: 6, params: { rmax: 0.06, half: 0.07, F: 0.5, beta: 0.3 }, fn: 'whirl',
     },
     predator: {
       id: 'predator', label: '捕食ピラミッド', emoji: '🦈',
-      desc: '食う・食われるの連鎖で、にわとり小屋みたいになる',
+      desc: '食う・食われるの連鎖',
       K: 6, params: { rmax: 0.07, half: 0.05, F: 0.5, beta: 0.3 }, fn: 'predator',
     },
   };
@@ -965,6 +966,11 @@
   var bgCanvas = document.createElement('canvas');
   var bgCtx = bgCanvas.getContext('2d');
 
+  function setOverlay(on) {
+    var app = document.getElementById('app');
+    if (app) app.classList.toggle('overlay', !!on);
+  }
+
   var el = {
     raceNum: $('race-num'), chips: $('chips'),
     phaseLabel: $('phase-label'), phaseTimer: $('phase-timer'),
@@ -1092,6 +1098,7 @@
     D.chips = 100; D.race = 0; D.history = []; D.best = loadBest();
     el.intro.classList.add('hidden');
     el.result.classList.add('hidden');
+    setOverlay(false);
     startNextRace();
     Sound.init(); Sound.start();
   }
@@ -1111,7 +1118,6 @@
     el.result.classList.add('hidden');
     el.raceNum.textContent = D.race;
     buildPanelCultivate();
-    toast('第' + D.race + 'レース — 培養をはじめた');
   }
 
   function buildWorld() {
@@ -1183,7 +1189,6 @@
     D.phase = 'bet';
     D.phaseTimer = BET_TIME;
     buildBetPanel();
-    toast('出馬表ができた — 賭ける群れを選んでください');
   }
 
   function shapeName(c) {
@@ -1321,7 +1326,7 @@
     if (D.phase === 'bet' && t.bet > 0) {
       D.chips += t.bet;
       D.totalBet -= t.bet;
-      toast(t.number + '番が' + reason + ' → ' + t.bet + 'チップ返金');
+      toast(t.number + '番 ' + reason + ' · 返金 ' + t.bet);
       t.bet = 0;
       renderCandidates();
     }
@@ -1407,7 +1412,7 @@
     } else if (!winner && D.totalBet > 0) {
       // 全滅したレースは賭けを返金
       D.chips += D.totalBet;
-      toast('全滅レース — 賭けは返金');
+      toast('全滅 · 返金');
     }
     D.history.push({
       race: D.race,
@@ -1441,17 +1446,17 @@
       head = '<div class="winner-row">' +
         '<div class="winner-badge" style="background:' + winner.hex + '">' + winner.number + '</div>' +
         '<div class="winner-name">' + winner.name + '</div></div>' +
-        '<div class="result-sub">第 ' + D.race + ' レース 勝者 — ' + winner.size + '粒</div>';
+        '<div class="result-sub">' + D.race + 'R 勝者 · ' + winner.size + '粒</div>';
     } else {
       head = '<div class="winner-name">勝者なし</div><div class="result-sub">すべての群れが消えてしまった…</div>';
     }
     var payLine;
     if (winner && winner.bet > 0) {
-      payLine = '<div class="payout">+' + payout + '<small>チップ（賭け ' + winner.bet + ' × ' + winner.odds + '倍）</small></div>';
+      payLine = '<div class="payout">+' + payout + '<small>' + winner.bet + ' × ' + winner.odds + '</small></div>';
     } else if (D.totalBet > 0) {
-      payLine = '<div class="payout" style="color:#8ea3c2; font-size:18px;">はずれ… -' + D.totalBet + ' チップ</div>';
+      payLine = '<div class="payout" style="color:#8ea3c2; font-size:18px;">はずれ · -' + D.totalBet + '</div>';
     } else {
-      payLine = '<div class="payout" style="color:#8ea3c2; font-size:18px;">観戦モード（賭けなし）</div>';
+      payLine = '<div class="payout" style="color:#8ea3c2; font-size:18px;">賭けなし</div>';
     }
     var isFinal = D.race >= D.races;
     var buttons;
@@ -1460,6 +1465,7 @@
     } else {
       buttons = '<button class="primary-btn" data-action="next">次のレースへ</button>';
     }
+    setOverlay(true);
     el.resultCard.innerHTML = head + payLine +
       '<div class="result-list">' + rows.join('') + '</div>' +
       '<div class="buttons">' + buttons + '</div>';
@@ -1483,15 +1489,16 @@
     else if (c >= 90) rank = 'C';
     else rank = 'D';
     var rows = D.history.map(function (h) {
-      var mark = h.payout > 0 ? '的中 +' + h.payout : 'はずれ';
+      var mark = h.payout > 0 ? '+' + h.payout : '—';
       return '<div class="result-row"><span>' + h.race + 'R ・ ' + h.winner + '番 ' + h.winnerName + '</span>' +
         '<span>' + mark + ' ／ 残り ' + h.chips + '</span></div>';
     }).join('');
+    setOverlay(true);
     el.resultCard.innerHTML =
       '<div class="kicker">FINAL RESULT</div>' +
       '<div class="final-rank">' + rank + '</div>' +
       '<div class="payout">' + D.chips + '<small>チップ</small></div>' +
-      '<div class="result-sub">3レースの合計 ・ BEST ' + loadBest() + '</div>' +
+      '<div class="result-sub">合計 · BEST ' + loadBest() + '</div>' +
       '<div class="result-list">' + rows + '</div>' +
       '<div class="buttons">' +
       '<button class="primary-btn" data-action="retry">もういちど</button>' +
@@ -1518,17 +1525,17 @@
     el.candRow.style.display = 'flex';
     el.standRow.style.display = 'none';
     el.panelNote.style.display = 'block';
-    el.panelTitle.innerHTML = '<b>出馬表</b> — 賭ける群れを選べ';
+    el.panelTitle.innerHTML = '<b>出馬表</b>';
     el.panelTools.innerHTML =
-      '<span class="stake-label">賭けるチップ</span>' +
+      '<span class="stake-label">チップ</span>' +
       [10, 25, 50].map(function (v) {
         return '<button class="chip-btn' + (D.stake === v ? ' on' : '') + '" data-stake="' + v + '">' + v + '</button>';
       }).join('') +
       '<button class="chip-btn" data-action="clear">取り消す</button>' +
-      '<button class="primary-btn" data-action="go">レース開始で確定</button>';
+      '<button class="primary-btn" data-action="go">レース開始</button>';
     el.panelNote.innerHTML =
-      '① チップ額を選ぶ ② 群れのカードをタップで賭ける ③「レース開始」で確定。<br>' +
-      '当たると <b style="color:#ffd166">賭け × オッズ</b> が戻ります。<b style="color:#6ef2c0">盤面は停止中</b> — 矢印が群れの動く向き。';
+      'チップ額を選び、カードをタップ。レース開始で確定。<br>' +
+      '当たると <b style="color:#ffd166">賭け × オッズ</b>。';
     renderCandidates();
   }
 
@@ -1543,19 +1550,18 @@
         '<span class="meta">' + t.size + '粒 ・ <span class="odds">' + t.odds.toFixed(1) + '倍</span> ・' + riskBadge +
         (t.growth ? '↗+' + Math.round(Math.abs(t.growth) * 100) + '%' : '') + '</span>' +
         '<span class="stake-row"><span class="stake">' +
-        (!t.alive ? '（' + t.reason + '）' : (t.bet > 0 ? '賭け ' + t.bet : 'タップで +' + D.stake)) +
+        (!t.alive ? '（' + t.reason + '）' : (t.bet > 0 ? '賭け ' + t.bet : '+' + D.stake)) +
         '</span>' + (t.bet > 0 ? '<span class="subbet" data-sub="' + i + '">−' + Math.min(D.stake, t.bet) + '</span>' : '') +
         '</span></span>' +
-        '<span class="addbet">＋</span></div>';
+        '</div>';
     }
     el.candRow.innerHTML = html;
     el.chips.textContent = D.chips;
     var note = el.panelNote;
     note.style.display = 'block';
-    note.innerHTML = '① チップ額を選ぶ ② カードをタップで賭ける ③ レース開始で確定。<br>' +
-      '当たると <b style="color:#ffd166">賭け × オッズ</b> が戻ります。' +
-      '<b style="color:#6ef2c0">いまは盤面停止中</b> — 矢印が群れの動く向き。' +
-      '<br>所持 <b>' + D.chips + '</b> ／ 賭け合計 <b>' + D.totalBet + '</b>';
+    note.innerHTML = 'チップ額を選び、カードをタップ。レース開始で確定。<br>' +
+      '当たると <b style="color:#ffd166">賭け × オッズ</b>。' +
+      '<br>所持 <b>' + D.chips + '</b> ／ 賭け <b>' + D.totalBet + '</b>';
   }
 
   function buildRacePanel() {
@@ -1657,13 +1663,13 @@
     el.raceNum.textContent = D.race;
     var label = '', sub = '', timer = '', frac = 0;
     if (D.phase === 'cultivate') {
-      label = '培養中'; sub = '群れが生まれるのを待っています';
+      label = '培養'; sub = '群れが生まれています';
       timer = D.phaseTimer.toFixed(1); frac = D.phaseTimer / CULTIVATE_TIME;
     } else if (D.phase === 'bet') {
-      label = '出馬表 — 盤面停止中'; sub = '💥の位置・矢印（進行方向）・オッズを見て、チップを賭ける';
+      label = '出馬表'; sub = '停止中 · 矢印は進行方向';
       timer = D.phaseTimer.toFixed(1); frac = D.phaseTimer / BET_TIME;
     } else if (D.phase === 'race') {
-      label = 'レース中'; sub = '雷撃はそのときのトップに落ちる';
+      label = 'レース'; sub = '';
       timer = D.phaseTimer.toFixed(1); frac = D.phaseTimer / RACE_TIME;
       if (D.raceTime > 3 && D.tags.length) {
         var alive = aliveTags();
@@ -1797,7 +1803,7 @@
       var cx = OX + h.x * S, cy = OY + h.y * S;
       var r = h.r * S;
       var left = D.phase === 'race' ? Math.max(0, h.t - D.raceTime) : h.t;
-      var labelTxt = D.phase === 'race' ? left.toFixed(0) + '秒' : '開始後' + h.t + 's';
+      var labelTxt = left.toFixed(0) + 's';
       var pulse = 0.5 + 0.5 * Math.sin(now * 4 + i);
       ctx.save();
       ctx.setLineDash([7, 8]);
@@ -2046,9 +2052,9 @@
       var btn = e.target.closest ? e.target.closest('[data-action]') : null;
       if (!btn) return;
       var action = btn.getAttribute('data-action');
-      if (action === 'next') { el.result.classList.add('hidden'); startNextRace(); }
+      if (action === 'next') { el.result.classList.add('hidden'); setOverlay(false); startNextRace(); }
       else if (action === 'final') { showFinal(); }
-      else if (action === 'retry') { startGame(); }
+      else if (action === 'retry') { setOverlay(false); startGame(); }
       else if (action === 'home') { location.reload(); }
     });
     el.panelTools.addEventListener('click', function (e) {
@@ -2208,6 +2214,7 @@
       // タイトル背景用の生態系
       D.race = 1;
       buildWorld();
+      setOverlay(true);
       requestAnimationFrame(loop);
     }
   }

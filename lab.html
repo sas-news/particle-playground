@@ -170,8 +170,7 @@
   <div class="toast" id="toast"></div>
 
   <div class="hint">
-    <b>長押し</b>でマグネット ／ <b>ダブルクリック</b>・<kbd>Space</kbd> でバースト<br>
-    数値をランダムにして、どんな生き物が生まれるか眺めよう
+    <b>長押し</b>でマグネット ／ <b>ダブルクリック</b>・<kbd>Space</kbd> でバースト
   </div>
 
   <button class="panel-toggle" id="panel-toggle" title="設定">⚙</button>
@@ -179,10 +178,9 @@
   <aside class="panel" id="panel">
     <div>
       <h1>Particle Lab</h1>
-      <p class="lead">吸引行列（引力・斥力の表）をいじると、粒の群れの生態系が変わります。<br>
-        🎲 は原作と同じく「行列の全マスを -1〜1 の乱数で置き換える」だけ。粒の数や速度は変わりません。</p>
+      <p class="lead">引力・斥力の行列をいじって、生態系を観察する。</p>
     </div>
-    <button class="dice-btn" id="dice-btn">🎲 引力・斥力をランダム化（原作準拠）</button>
+    <button class="dice-btn" id="dice-btn">🎲 引力・斥力をランダム化</button>
     <div class="presets">
       <button class="preset" data-id="himo">ひも状</button>
       <button class="preset" data-id="whirl">渦ワルツ</button>
@@ -192,7 +190,7 @@
     <div class="matrix-wrap">
       <div class="matrix-title">引力・斥力の表 <small>行 ← 列 が受ける力</small></div>
       <div class="matrix" id="matrix"></div>
-      <div class="matrix-legend"><span class="pos">＋ 引力</span><span class="neg">− 斥力</span><span>🎲で全マスが一様乱数になる</span></div>
+      <div class="matrix-legend"><span class="pos">＋ 引力</span><span class="neg">− 斥力</span><span>🎲 は行列のみ</span></div>
     </div>
     <div class="row">
       <button class="btn" id="perturb-btn">摂動モード</button>
@@ -206,10 +204,7 @@
     <div class="srow"><span>力の強さ</span><input type="range" id="range-f" min="0.2" max="1.4" step="0.05" value="0.5"><b id="val-f">0.50</b></div>
     <div class="srow"><span>速さ</span><input type="range" id="range-dt" min="0.01" max="0.04" step="0.002" value="0.02"><b id="val-dt">0.020</b></div>
     <div class="srow"><span>斥力の域</span><input type="range" id="range-beta" min="0.15" max="0.5" step="0.01" value="0.3"><b id="val-beta">0.30</b></div>
-    <div class="note">
-      群れは操作できません。マグネットとバーストで、環境のほうをちょっとだけ揺らせます。<br>
-      「摂動モード」は行列がゆっくり変わり続けるので、生態系がずっと動きます。
-    </div>
+    <div class="note">群れは操作できません。</div>
     <div class="back"><a href="index.html">← ほかのモードへ</a></div>
   </aside>
 </div>
@@ -290,27 +285,27 @@
   var PRESETS = {
     himo: {
       id: 'himo', label: 'ひも状', emoji: '〜',
-      desc: '色が数珠つなぎになった、ウネウネのヒモができる',
+      desc: '色が数珠つなぎになる',
       K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'himo',
     },
     random: {
       id: 'random', label: 'ランダム変異', emoji: '🌀',
-      desc: 'ひも状をベースに行列をゆらす。毎回ちがう群れになる',
+      desc: '行列をゆらして変化させる',
       K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'jitter', random: true,
     },
     chase: {
       id: 'chase', label: '循環追跡', emoji: '🏃',
-      desc: '追う・逃げるが連鎖して、生き物みたいに動き続ける',
+      desc: '追う・逃げるの連鎖',
       K: 6, params: { rmax: 0.055, half: 0.05, F: 0.4, beta: 0.3 }, fn: 'chase',
     },
     whirl: {
       id: 'whirl', label: '渦ワルツ', emoji: '🌀',
-      desc: '渦を巻くように回りながら群れる',
+      desc: '渦を巻いて回る',
       K: 6, params: { rmax: 0.06, half: 0.07, F: 0.5, beta: 0.3 }, fn: 'whirl',
     },
     predator: {
       id: 'predator', label: '捕食ピラミッド', emoji: '🦈',
-      desc: '食う・食われるの連鎖で、にわとり小屋みたいになる',
+      desc: '食う・食われるの連鎖',
       K: 6, params: { rmax: 0.07, half: 0.05, F: 0.5, beta: 0.3 }, fn: 'predator',
     },
   };
@@ -943,7 +938,7 @@
   /* ---------- シミュレーション --------------------------------- */
   function round2(v) { return Math.round(v * 100) / 100; }
 
-  /** 原作の 🎲 と同じ: 行列の全セルを -1〜1 の一様乱数で置き換える */
+  /** 🎲: 行列の全セルを -1〜1 の一様乱数で置き換える */
   function randomMatrix(K) {
     var M = new Float32Array(K * K);
     for (var i = 0; i < K; i++) {
@@ -976,7 +971,7 @@
     syncSliders();
     buildSim(false);
     buildMatrixUI();
-    toast('「' + p.label + '」に切り替え');
+    toast(p.label);
   }
 
   /* ---------- 行列の可視化 ----------------------------------- */
@@ -1016,14 +1011,14 @@
   }
 
   /* ---------- 操作 ------------------------------------------- */
-  /** 原作準拠: 行列だけランダム化。粒・パラメータはそのまま */
+  /** 行列だけランダム化。粒・パラメータはそのまま */
   function randomizeAll() {
     var K = state.K;
     state.matrix = randomMatrix(K);
     if (state.sim) state.sim.setMatrix(state.matrix, K);
     buildMatrixUI();
     state.flash = 0.5;
-    toast('引力・斥力をランダム化した（数値はそのまま）');
+    toast('引力・斥力をランダム化');
   }
 
   function resetParticles() {
@@ -1090,7 +1085,7 @@
     $('perturb-btn').addEventListener('click', function () {
       state.perturb = !state.perturb;
       this.classList.toggle('on', state.perturb);
-      toast(state.perturb ? '摂動モード ON — 行列がゆっくり変わる' : '摂動モード OFF');
+      toast(state.perturb ? '摂動 ON' : '摂動 OFF');
     });
     $('panel-toggle').addEventListener('click', function () {
       document.body.classList.toggle('panel-open');
@@ -1101,7 +1096,7 @@
       presets[i].addEventListener('click', function () { setMatrixPreset(this.dataset.id); });
     }
 
-    bindSlider('range-k', 'val-k', 2, 8, 1, function (v) { state.K = v; state.matrix = null; buildSim(true); toast('色の種類を ' + v + ' にした'); }, function (v) { return v; });
+    bindSlider('range-k', 'val-k', 2, 8, 1, function (v) { state.K = v; state.matrix = null; buildSim(true); toast('K = ' + v); }, function (v) { return v; });
     bindSlider('range-n', 'val-n', 1000, 6000, 500, function (v) { state.N = v; buildSim(false); }, function (v) { return v; });
     bindSlider('range-rmax', 'val-rmax', 0.03, 0.08, 0.005, function (v) { state.params.rmax = v; buildSim(false); }, function (v) { return v.toFixed(3); });
     bindSlider('range-f', 'val-f', 0.2, 1.4, 0.05, function (v) { state.params.F = v; if (state.sim) state.sim.F = v; }, function (v) { return v.toFixed(2); });
@@ -1178,8 +1173,8 @@
     $('stat-clusters').textContent = state.clusters.length;
     $('stat-biggest').textContent = state.biggest ? state.biggest.size : 0;
     var st = '観察中';
-    if (state.biggest && state.biggest.size > sim.N * 0.06) st = '巨大な塊が暴走中！';
-    else if (state.clusters.length > sim.N / 30) st = '小さな群れが大量発生';
+    if (state.biggest && state.biggest.size > sim.N * 0.06) st = '巨大塊';
+    else if (state.clusters.length > sim.N / 30) st = '小群れ多発';
     $('stat-state').textContent = st;
     $('stat-state').className = state.biggest && state.biggest.size > sim.N * 0.06 ? 'stat-state hot' : 'stat-state';
   }

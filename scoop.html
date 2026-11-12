@@ -348,9 +348,9 @@
 
   <div class="screen" id="title-screen">
     <div class="title-inner">
-      <div class="title-kicker">Particle Life × Scoop</div>
+      <div class="title-kicker">Particle Life</div>
       <h1>Particle Scoop</h1>
-      <p class="title-sub">生態系にうまれる群れを、90秒ですくいとれ。</p>
+      <p class="title-sub">群れを90秒ですくい集める。</p>
       <div class="preset-label">培養液をえらぶ</div>
       <div class="preset-list" id="preset-list"></div>
       <button class="primary-btn" id="start-btn">あそぶ</button>
@@ -358,7 +358,7 @@
         <span>長押しで吸引</span><span>リングに収めて捕獲</span><span>Spaceでバースト</span><span>トゲ胞子に注意</span>
       </div>
       <div class="best-line">BEST <b id="best-title">0</b></div>
-      <div class="credit">inspired by <a href="https://cerevisiae-fii.github.io/particle-life/" target="_blank" rel="noopener">Particle Life</a> — 吸引行列でうまれる群れを遊びにしました<br><a href="index.html">← ほかのモード</a> ／ <a href="derby.html">Particle Derby</a> ／ <a href="lab.html">Particle Lab</a></div>
+      <div class="credit"><a href="index.html">← ほかのモード</a> ／ <a href="derby.html">Particle Derby</a> ／ <a href="lab.html">Particle Lab</a> ／ <a href="https://cerevisiae-fii.github.io/particle-life/" target="_blank" rel="noopener">Particle Life</a></div>
     </div>
   </div>
 
@@ -464,27 +464,27 @@
   var PRESETS = {
     himo: {
       id: 'himo', label: 'ひも状', emoji: '〜',
-      desc: '色が数珠つなぎになった、ウネウネのヒモができる',
+      desc: '色が数珠つなぎになる',
       K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'himo',
     },
     random: {
       id: 'random', label: 'ランダム変異', emoji: '🌀',
-      desc: 'ひも状をベースに行列をゆらす。毎回ちがう群れになる',
+      desc: '行列をゆらして変化させる',
       K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'jitter', random: true,
     },
     chase: {
       id: 'chase', label: '循環追跡', emoji: '🏃',
-      desc: '追う・逃げるが連鎖して、生き物みたいに動き続ける',
+      desc: '追う・逃げるの連鎖',
       K: 6, params: { rmax: 0.055, half: 0.05, F: 0.4, beta: 0.3 }, fn: 'chase',
     },
     whirl: {
       id: 'whirl', label: '渦ワルツ', emoji: '🌀',
-      desc: '渦を巻くように回りながら群れる',
+      desc: '渦を巻いて回る',
       K: 6, params: { rmax: 0.06, half: 0.07, F: 0.5, beta: 0.3 }, fn: 'whirl',
     },
     predator: {
       id: 'predator', label: '捕食ピラミッド', emoji: '🦈',
-      desc: '食う・食われるの連鎖で、にわとり小屋みたいになる',
+      desc: '食う・食われるの連鎖',
       K: 6, params: { rmax: 0.07, half: 0.05, F: 0.5, beta: 0.3 }, fn: 'predator',
     },
   };
@@ -1451,7 +1451,7 @@
     Sound.init();
     applyWave(1, true);
     show(false, false);
-    toast('培養開始 — 群れが育つのを待とう');
+    toast('培養開始');
     canvas.classList.add('grabbing');
     el.orderCard.classList.remove('done');
   }
@@ -1483,7 +1483,7 @@
       state.flash = 0.45;
       state.shake = Math.max(state.shake, 6);
       Sound.wave();
-      toast('第' + n + '世代 — 培養液を入れ替えた');
+      toast('第' + n + '世代');
     }
     state.wave = n;
     state.waveTimer = 0;
@@ -1532,7 +1532,7 @@
       addSpark(sp.x, sp.y, Math.cos(a) * spd, Math.sin(a) * spd, SPORE_COLOR, 0.5);
     }
     addText(sp.x, sp.y - 0.03, 'バチッ! -' + GAME.sporeCost, '#ff7fb8', 18);
-    toast('トゲ胞子にさわった…！ エネルギー -' + GAME.sporeCost);
+    toast('胞子 · -' + GAME.sporeCost);
     Sound.pop();
   }
 
@@ -1656,7 +1656,7 @@
 
   function burst() {
     if (state.burstCd > 0 || state.energy < GAME.burstCost) {
-      if (state.energy < GAME.burstCost) toast('エネルギーが足りない…');
+      if (state.energy < GAME.burstCost) toast('エネルギー不足');
       return;
     }
     state.energy -= GAME.burstCost;
