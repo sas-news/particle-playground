@@ -1,0 +1,2720 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070f">
+<title>Particle Scoop — Particle Life 捕獲ゲーム</title>
+<style>
+  :root {
+    --bg: #04060e;
+    --panel: rgba(11, 17, 31, .74);
+    --line: rgba(150, 200, 255, .15);
+    --mint: #6ef2c0;
+    --pink: #ff8fa3;
+    --sky: #7fc6ff;
+    --gold: #ffd166;
+    --text: #eaf2ff;
+    --dim: #8ea3c2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+  body {
+    color: var(--text);
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI",
+                 "Noto Sans JP", "Meiryo", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app { position: fixed; inset: 0; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #cv.grabbing { cursor: none; }
+
+  /* ---------- 上部 HUD ---------- */
+  .hud {
+    position: absolute; top: 0; left: 0; right: 0; height: 70px;
+    display: flex; align-items: center; gap: 18px;
+    padding: 10px 20px; pointer-events: none;
+  }
+  .hud > * { pointer-events: auto; }
+  .score-wrap { min-width: 120px; }
+  .score-label { font-size: 10px; letter-spacing: .22em; color: var(--dim); }
+  .score {
+    font-size: 30px; font-weight: 800; line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 18px rgba(110, 242, 192, .35);
+  }
+  .combo {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-top: 4px; padding: 2px 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 800; color: #1a0c12;
+    background: linear-gradient(135deg, #ffd166, #ff8fa3);
+    box-shadow: 0 0 18px rgba(255, 143, 163, .35);
+  }
+  .combo.hidden { visibility: hidden; }
+  .hud-center { flex: 1; max-width: 520px; margin: 0 auto; }
+  .wave-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--dim); }
+  #wave-label {
+    letter-spacing: .12em; font-size: 11px; color: var(--mint);
+    text-transform: uppercase;
+  }
+  #time-text { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--text); font-size: 15px; }
+  .timebar {
+    margin-top: 5px; height: 6px; border-radius: 999px; overflow: hidden;
+    background: rgba(255, 255, 255, .08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+  }
+  #timebar-fill {
+    height: 100%; width: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #6ef2c0, #7fc6ff 60%, #b79bff);
+    box-shadow: 0 0 14px rgba(110, 242, 192, .55);
+    transition: width .08s linear;
+  }
+  .hud-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .best { font-size: 10px; letter-spacing: .18em; color: var(--dim); margin-right: 6px; text-align: right; }
+  .best b { display: block; font-size: 16px; letter-spacing: 0; color: var(--text); font-variant-numeric: tabular-nums; }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text); font-size: 16px; cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+  .icon-btn:hover { border-color: rgba(110, 242, 192, .5); }
+
+  /* ---------- 注文カード ---------- */
+  .order-card {
+    position: absolute; left: 20px; bottom: 112px; width: 188px;
+    padding: 10px 12px 11px; border-radius: 16px;
+    background: var(--panel); border: 1px solid var(--line);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    overflow: hidden;
+  }
+  .order-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10px; letter-spacing: .2em; color: var(--dim);
+  }
+  #order-bonus { color: var(--gold); font-weight: 800; letter-spacing: 0; font-size: 11px; }
+  .order-body {
+    display: flex; align-items: center; gap: 8px; margin-top: 6px;
+    font-size: 13px; font-weight: 700; line-height: 1.25;
+  }
+  #order-icon {
+    display: grid; place-items: center; flex: 0 0 auto;
+    width: 30px; height: 30px; border-radius: 10px;
+    background: rgba(110, 242, 192, .12); color: var(--mint); font-size: 15px;
+  }
+  .order-done {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    background: rgba(8, 14, 26, .96); color: var(--mint);
+    font-weight: 800; letter-spacing: .14em; font-size: 13px;
+    opacity: 0; pointer-events: none; transition: opacity .15s;
+  }
+  .order-card.done .order-done { opacity: 1; }
+
+  /* ---------- 下部 HUD ---------- */
+  .bottom {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 92px;
+    display: flex; align-items: center; gap: 22px;
+    padding: 12px 22px 16px; pointer-events: none;
+  }
+  .bottom > * { pointer-events: auto; }
+  .energy-wrap { width: min(300px, 40vw); }
+  .energy-label { font-size: 10px; letter-spacing: .18em; color: var(--dim); margin-bottom: 6px; }
+  .energybar {
+    height: 9px; border-radius: 999px; overflow: hidden;
+    background: rgba(255, 255, 255, .07);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+  }
+  #energy-fill {
+    height: 100%; width: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #6ef2c0, #7fc6ff);
+    box-shadow: 0 0 14px rgba(110, 242, 192, .5);
+    transition: width .1s linear;
+  }
+  .energy-wrap.low #energy-fill { background: linear-gradient(90deg, #ff8fa3, #ffb26b); }
+  .capture-wrap { display: flex; align-items: baseline; gap: 6px; color: var(--dim); font-size: 11px; letter-spacing: .14em; }
+  .capture-wrap b { font-size: 24px; color: var(--text); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+  .hint { margin-left: auto; text-align: right; font-size: 11px; line-height: 1.6; color: var(--dim); }
+  .hint b { color: var(--mint); font-weight: 700; }
+  .hint .key {
+    display: inline-block; padding: 1px 6px; border-radius: 6px;
+    background: rgba(255, 255, 255, .08); border: 1px solid var(--line);
+    font-size: 10px;
+  }
+
+  /* ---------- トースト ---------- */
+  .toast {
+    position: absolute; left: 50%; top: 96px; transform: translateX(-50%);
+    padding: 8px 18px; border-radius: 999px;
+    background: rgba(8, 14, 26, .8); border: 1px solid var(--line);
+    font-size: 13px; font-weight: 700; color: var(--mint);
+    opacity: 0; pointer-events: none; white-space: nowrap;
+    backdrop-filter: blur(8px);
+  }
+  .toast.show { animation: toastIn 2.2s ease both; }
+  @keyframes toastIn {
+    0% { opacity: 0; transform: translate(-50%, 8px) scale(.96); }
+    12% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    78% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -6px); }
+  }
+
+  /* オーバーレイ表示中は HUD を隠す */
+  #app.overlay .hud, #app.overlay .bottom, #app.overlay .order-card { opacity: 0; pointer-events: none; }
+  .hud, .bottom, .order-card { transition: opacity .25s ease; }
+
+  /* ---------- 画面オーバーレイ ---------- */
+  .screen {
+    position: absolute; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    padding: 22px; overflow-y: auto;
+    background:
+      radial-gradient(90% 70% at 50% 0%, rgba(18, 36, 64, .30), rgba(3, 6, 13, .62) 62%),
+      rgba(3, 6, 13, .22);
+    backdrop-filter: blur(1.5px);
+  }
+  .screen.hidden { display: none; }
+  .title-inner, .result-inner {
+    width: min(660px, 100%); text-align: center;
+    animation: rise .5s cubic-bezier(.2, .8, .2, 1) both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  .title-kicker, .result-kicker {
+    font-size: 10px; letter-spacing: .34em; color: var(--mint);
+    text-transform: uppercase; margin-bottom: 12px;
+  }
+  h1 {
+    margin: 0; font-size: clamp(36px, 7vw, 66px); line-height: 1.04; letter-spacing: .01em;
+    background: linear-gradient(100deg, #a9ffe3 8%, #7fc6ff 46%, #ffb2c2 92%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 8px 34px rgba(96, 220, 255, .3));
+  }
+  .title-sub { margin: 14px 0 22px; font-size: 13px; color: var(--dim); letter-spacing: .06em; }
+  .preset-label { font-size: 10px; letter-spacing: .24em; color: var(--dim); margin-bottom: 8px; }
+  .preset-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+  .preset {
+    display: grid; grid-template-columns: 34px 1fr; gap: 8px; align-items: center;
+    text-align: left; padding: 9px 11px; border-radius: 14px; cursor: pointer;
+    background: rgba(255, 255, 255, .03); border: 1px solid var(--line);
+    color: var(--text); font: inherit;
+    transition: border-color .15s, background .15s, transform .1s;
+  }
+  .preset:hover { background: rgba(255, 255, 255, .06); }
+  .preset.on {
+    border-color: rgba(110, 242, 192, .65);
+    background: linear-gradient(160deg, rgba(110, 242, 192, .16), rgba(127, 198, 255, .07));
+    box-shadow: 0 0 24px rgba(110, 242, 192, .16), inset 0 0 0 1px rgba(110, 242, 192, .18);
+  }
+  .preset .emoji { font-size: 22px; text-align: center; }
+  .preset .name { display: block; font-size: 13px; font-weight: 800; }
+  .preset .desc { display: block; font-size: 10px; color: var(--dim); margin-top: 2px; line-height: 1.35; }
+
+  .primary-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 14px 46px; border: 0; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 17px; font-weight: 800; letter-spacing: .04em; color: #04150f;
+    background: linear-gradient(135deg, #8ffcd6, #6ef2c0 55%, #7fc6ff);
+    box-shadow: 0 10px 34px rgba(110, 242, 192, .35), inset 0 1px 0 rgba(255, 255, 255, .5);
+    transition: transform .12s, box-shadow .2s;
+  }
+  .primary-btn:hover { transform: translateY(-1px) scale(1.015); box-shadow: 0 14px 40px rgba(110, 242, 192, .45); }
+  .primary-btn:active { transform: translateY(1px) scale(.99); }
+  .ghost-btn {
+    padding: 12px 26px; border-radius: 999px; cursor: pointer; font: inherit;
+    font-size: 13px; color: var(--text); background: rgba(255, 255, 255, .04);
+    border: 1px solid var(--line);
+  }
+  .ghost-btn:hover { border-color: rgba(255, 255, 255, .3); }
+  .howto {
+    display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 16px;
+    margin: 20px 0 10px; font-size: 11px; color: var(--dim);
+  }
+  .howto span::before { content: "· "; color: var(--mint); }
+  .best-line { font-size: 10px; letter-spacing: .2em; color: var(--dim); }
+  @media (max-height: 640px) {
+    .screen { align-items: flex-start; padding-top: 14px; }
+    h1 { font-size: clamp(32px, 9vh, 54px); }
+    .title-kicker, .result-kicker { margin-bottom: 6px; }
+    .title-sub { margin: 8px 0 12px; }
+    .preset-list { margin-bottom: 12px; }
+    .preset { padding: 7px 10px; }
+    .preset .desc { display: none; }
+    .howto, .credit { display: none; }
+    .best-line { margin-top: 6px; }
+    .result-inner { padding: 18px 24px 18px; }
+    .rank { font-size: clamp(56px, 14vh, 96px); }
+  }
+  .best-line b { color: var(--gold); font-size: 14px; letter-spacing: 0; }
+  .credit { margin-top: 16px; font-size: 10px; color: rgba(142, 163, 194, .65); }
+  .credit a { color: rgba(142, 163, 194, .9); text-decoration: none; border-bottom: 1px dotted rgba(142, 163, 194, .4); }
+
+  /* ---------- リザルト ---------- */
+  .rank {
+    font-size: clamp(80px, 16vw, 138px); line-height: .92; font-weight: 900;
+    background: linear-gradient(160deg, #fff4b8, #ffd166 40%, #ff8fa3 75%, #b79bff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 10px 40px rgba(255, 209, 102, .28));
+  }
+  .result-score { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 2px 0 18px; }
+  .result-score small { font-size: 14px; color: var(--dim); margin-left: 6px; letter-spacing: .1em; }
+  .result-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    margin: 0 auto 24px; width: min(440px, 100%);
+  }
+  .result-grid > div {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 10px 14px; border-radius: 12px;
+    background: rgba(255, 255, 255, .035); border: 1px solid var(--line);
+    font-size: 11px; color: var(--dim);
+  }
+  .result-grid b { color: var(--text); font-size: 16px; font-variant-numeric: tabular-nums; }
+  .result-buttons { display: flex; gap: 10px; justify-content: center; }
+
+  .pause-inner { text-align: center; font-size: 22px; font-weight: 800; letter-spacing: .2em; }
+  .pause-inner .primary-btn { margin-top: 18px; font-size: 14px; padding: 12px 34px; }
+
+  @media (max-width: 620px) {
+    .hud { height: 62px; padding: 8px 12px; gap: 10px; }
+    .score { font-size: 24px; }
+    .score-label { font-size: 9px; }
+    .hud-right .best { display: none; }
+    .order-card { left: 10px; bottom: 104px; width: 158px; padding: 8px 10px; }
+    .order-body { font-size: 11px; }
+    .bottom {
+      height: auto; flex-wrap: wrap; align-items: center;
+      gap: 6px 12px; padding: 0 12px;
+    }
+    .energy-wrap { width: 56vw; }
+    .capture-wrap { white-space: nowrap; }
+    .capture-wrap b { font-size: 20px; }
+    .hint { width: 100%; max-width: none; margin-left: 0; text-align: left; font-size: 10px; line-height: 1.5; }
+    .hint #hint-sub, .hint br { display: none; }
+    .preset-list { gap: 6px; }
+    .preset { grid-template-columns: 26px 1fr; padding: 8px; }
+    .preset .emoji { font-size: 17px; }
+    .preset .name { font-size: 11px; }
+    .preset .desc { font-size: 9px; }
+    .howto { gap: 4px 10px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <div class="hud" id="hud">
+    <div class="hud-left">
+      <div class="score-wrap">
+        <div class="score-label">SCORE</div>
+        <div class="score" id="score">0</div>
+      </div>
+      <div class="combo hidden" id="combo">×1.0</div>
+    </div>
+    <div class="hud-center">
+      <div class="wave-row">
+        <span id="wave-label">第 1 世代</span>
+        <span id="time-text">90.0</span>
+      </div>
+      <div class="timebar"><div id="timebar-fill"></div></div>
+    </div>
+    <div class="hud-right">
+      <div class="best">BEST<b id="best">0</b></div>
+      <button class="icon-btn" id="mute-btn" title="サウンド">🔊</button>
+      <button class="icon-btn" id="pause-btn" title="ポーズ">⏸</button>
+    </div>
+  </div>
+
+  <div class="order-card" id="order-card">
+    <div class="order-head"><span>注文</span><span id="order-bonus">+60</span></div>
+    <div class="order-body"><span id="order-icon">〜</span><span id="order-label">群れを 1つ</span></div>
+    <div class="order-done">達成！</div>
+  </div>
+
+  <div class="bottom">
+    <div class="energy-wrap" id="energy-wrap">
+      <div class="energy-label">吸引エネルギー</div>
+      <div class="energybar"><div id="energy-fill"></div></div>
+    </div>
+    <div class="capture-wrap"><span>捕獲</span><b id="capture-count">0</b></div>
+    <div class="hint">
+      <b>長押し</b>で吸引 / <span class="key">Space</span> バースト<br>
+      <span id="hint-sub">群れをリングに収めると捕獲</span>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="screen" id="title-screen">
+    <div class="title-inner">
+      <div class="title-kicker">Particle Life × Scoop</div>
+      <h1>Particle Scoop</h1>
+      <p class="title-sub">生態系にうまれる群れを、90秒ですくいとれ。</p>
+      <div class="preset-label">培養液をえらぶ</div>
+      <div class="preset-list" id="preset-list"></div>
+      <button class="primary-btn" id="start-btn">あそぶ</button>
+      <div class="howto">
+        <span>長押しで吸引</span><span>リングに収めて捕獲</span><span>Spaceでバースト</span><span>トゲ胞子に注意</span>
+      </div>
+      <div class="best-line">BEST <b id="best-title">0</b></div>
+      <div class="credit">inspired by <a href="https://cerevisiae-fii.github.io/particle-life/" target="_blank" rel="noopener">Particle Life</a> — 吸引行列でうまれる群れを遊びにしました<br><a href="index.html">← ほかのモード</a> ／ <a href="derby.html">Particle Derby</a> ／ <a href="lab.html">Particle Lab</a></div>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="result-screen">
+    <div class="result-inner">
+      <div class="result-kicker">培養終了</div>
+      <div class="rank" id="rank">A</div>
+      <div class="result-score"><span id="result-score">0</span><small>pt</small></div>
+      <div class="result-grid">
+        <div><span>捕獲した群れ</span><b id="result-captures">0</b></div>
+        <div><span>いちばんの大物</span><b id="result-biggest">0粒</b></div>
+        <div><span>最大コンボ</span><b id="result-combo">×1.0</b></div>
+        <div><span>注文達成</span><b id="result-orders">0</b></div>
+      </div>
+      <div class="result-buttons">
+        <button class="primary-btn" id="retry-btn">もういちど</button>
+        <button class="ghost-btn" id="title-btn">タイトルへ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="pause-screen">
+    <div class="pause-inner">
+      <div>ひとやすみ</div>
+      <button class="primary-btn" id="resume-btn">つづける</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==== src/sim.js ==== */
+/* ============================================================
+ * Worm Lab — Particle Life 物理コア（DOM 非依存・決定論的）
+ *  元ネタ: https://cerevisiae-fii.github.io/particle-life/ の
+ *  吸引行列モデルを、ブラウザ/Node 両方で使えるように切り出したもの。
+ *  - 座標は [0,1) のトーラス（端がつながる）
+ *  - 粒子は種類 type ごとに連続ブロックで生成（描画を軽くするため）
+ *  - クラスタ解析（ヒモ検出）もここに置き、Node テストで検証できる
+ * ============================================================ */
+(function (root, factory) {
+  var api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.WL = Object.assign(root.WL || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  var MK = 9; // matrix の stride（種類数の上限）
+  var SIM_DEFAULTS = Object.freeze({
+    N: 3400, K: 6, rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3, dt: 0.02,
+  });
+
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function cyc(i, j, K) { return ((j - i) % K + K) % K; }
+
+  /* ---------- 行列プリセット ---------------------------------
+   * f(i,j) = 種類 i が 種類 j から受ける力（+ 引き合う / - 反発）
+   * 添字は「i の種類番号, j の種類番号, 種類数, 乱数」
+   */
+  var MATRIX_FNS = {
+    himo: function (i, j, K) {
+      if (i === j) return 0;
+      var c = cyc(i, j, K);
+      return (c === 1 || c === K - 1) ? 0.8 : -0.3;
+    },
+    whirl: function (i, j, K) {
+      return Math.sin(((j - i + K) % K) * 1.2 + 0.5) * 0.8;
+    },
+    // 元サイトの既定「循環追跡」: 1つ先を追い、1つ前から逃げる
+    chase: function (i, j, K) {
+      if (i === j) return 0.3;
+      var c = cyc(i, j, K);
+      return c === 1 ? 0.7 : (c === K - 1 ? -0.5 : 0);
+    },
+    predator: function (i, j, K) {
+      if (i === j) return 0;
+      var c = cyc(i, j, K);
+      return c === 1 ? 1 : (c === K - 1 ? -1 : 0);
+    },
+    // 完全ランダム：何が出るか分からないワクワク枠
+    wild: function (i, j, K, rng) {
+      if (i === j) return 0.35;
+      return rng() * 2 - 1;
+    },
+    // ひも状を少しずらす：ヒモっぽさを残しつつ毎回変わる
+    jitter: function (i, j, K, rng) {
+      if (i === j) return 0.1;
+      var c = cyc(i, j, K);
+      var base = (c === 1 || c === K - 1) ? 0.8 : -0.3;
+      return base + (rng() * 0.9 - 0.45);
+    },
+  };
+
+  var PRESETS = {
+    himo: {
+      id: 'himo', label: 'ひも状', emoji: '〜',
+      desc: '色が数珠つなぎになった、ウネウネのヒモができる',
+      K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'himo',
+    },
+    random: {
+      id: 'random', label: 'ランダム', emoji: '🎲',
+      desc: '毎回ちがう吸引行列。何が生まれるかはお楽しみ',
+      K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'jitter', random: true,
+    },
+    chase: {
+      id: 'chase', label: '循環追跡', emoji: '🏃',
+      desc: '追う・逃げるが連鎖して、生き物みたいに動き続ける',
+      K: 6, params: { rmax: 0.055, half: 0.05, F: 0.4, beta: 0.3 }, fn: 'chase',
+    },
+    whirl: {
+      id: 'whirl', label: '渦ワルツ', emoji: '🌀',
+      desc: '渦を巻くように回りながら群れる',
+      K: 6, params: { rmax: 0.06, half: 0.07, F: 0.5, beta: 0.3 }, fn: 'whirl',
+    },
+    predator: {
+      id: 'predator', label: '捕食ピラミッド', emoji: '🦈',
+      desc: '食う・食われるの連鎖で、にわとり小屋みたいになる',
+      K: 6, params: { rmax: 0.07, half: 0.05, F: 0.5, beta: 0.3 }, fn: 'predator',
+    },
+  };
+
+  function buildMatrix(fn, K, rng) {
+    var M = new Float32Array(K * K);
+    for (var i = 0; i < K; i++) {
+      for (var j = 0; j < K; j++) {
+        var v = fn(i, j, K, rng);
+        M[i * K + j] = Math.max(-1, Math.min(1, v));
+      }
+    }
+    return M;
+  }
+
+  /** プリセットID + シードから、実際のパラメータ一式を作る */
+  function makePreset(id, seed) {
+    var def = PRESETS[id] || PRESETS.himo;
+    var rng = mulberry32((seed >>> 0) ^ 0x9e3779b9);
+    return {
+      id: def.id,
+      label: def.label,
+      K: def.K,
+      params: {
+        rmax: def.params.rmax != null ? def.params.rmax : SIM_DEFAULTS.rmax,
+        half: def.params.half != null ? def.params.half : SIM_DEFAULTS.half,
+        F: def.params.F != null ? def.params.F : SIM_DEFAULTS.F,
+        beta: def.params.beta != null ? def.params.beta : SIM_DEFAULTS.beta,
+        dt: def.params.dt != null ? def.params.dt : SIM_DEFAULTS.dt,
+      },
+      matrix: buildMatrix(MATRIX_FNS[def.fn], def.K, rng),
+    };
+  }
+
+  /* ---------- 物理本体 ---------------------------------------- */
+  function ParticleLife(opts) {
+    opts = opts || {};
+    var o = Object.assign({}, SIM_DEFAULTS, opts);
+    this.N = o.N | 0;
+    this.K = o.K | 0;
+    this.rmax = o.rmax;
+    this.half = o.half;
+    this.F = o.F;
+    this.beta = o.beta;
+    this.dt = o.dt;
+    this.M = new Float32Array(MK * MK);
+    this.seed = o.seed >>> 0;
+    this.random = mulberry32(this.seed || 1);
+    this.time = 0;
+
+    var N = this.N;
+    this.px = new Float32Array(N);
+    this.py = new Float32Array(N);
+    this.vx = new Float32Array(N);
+    this.vy = new Float32Array(N);
+    this.type = new Uint8Array(N);
+    this.alive = new Uint8Array(N);
+
+    this.C = Math.max(3, Math.floor(1 / this.rmax));
+    var nc = this.C * this.C;
+    this.gStart = new Int32Array(nc + 1);
+    this.gPtr = new Int32Array(nc + 1);
+    this.gOrder = new Int32Array(N);
+    this.gCell = new Int32Array(N);
+    this._gridTime = -1;
+
+    // クラスタ解析用の作業領域（毎フレームのアロケーションを避ける）
+    this._ufParent = new Int32Array(N);
+    this._ufRank = new Uint8Array(N);
+    this._rootOf = new Int32Array(N);
+    this._rootStamp = new Int32Array(N);
+    this._aggSize = new Int32Array(N);
+    this._aggSx = new Float64Array(N);
+    this._aggSy = new Float64Array(N);
+    this._aggSxx = new Float64Array(N);
+    this._aggSyy = new Float64Array(N);
+    this._aggSxy = new Float64Array(N);
+    this._head = new Int32Array(N);
+    this._next = new Int32Array(N);
+    this._kd = new Float64Array(4);
+    this._kj = new Int32Array(4);
+    this._gen = 0;
+
+    if (o.matrix && o.matrix.length >= this.K * this.K) this.setMatrix(o.matrix, this.K);
+    this.reset();
+  }
+
+  ParticleLife.prototype.setMatrix = function (flat, K) {
+    if (K) this.K = K | 0;
+    this.M.fill(0);
+    for (var i = 0; i < this.K; i++) {
+      for (var j = 0; j < this.K; j++) {
+        this.M[i * MK + j] = flat[i * this.K + j] || 0;
+      }
+    }
+  };
+
+  ParticleLife.prototype.getMatrix = function () {
+    var out = new Float32Array(this.K * this.K);
+    for (var i = 0; i < this.K; i++) {
+      for (var j = 0; j < this.K; j++) out[i * this.K + j] = this.M[i * MK + j];
+    }
+    return out;
+  };
+
+  ParticleLife.prototype.reset = function () {
+    var N = this.N, K = this.K;
+    for (var i = 0; i < N; i++) {
+      this.type[i] = Math.min(K - 1, Math.floor((i * K) / N));
+      this.px[i] = this.random();
+      this.py[i] = this.random();
+      this.vx[i] = 0;
+      this.vy[i] = 0;
+      this.alive[i] = 1;
+    }
+    this.time = 0;
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.setAlive = function (i, on) {
+    this.alive[i] = on ? 1 : 0;
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.respawn = function (i) {
+    this.px[i] = this.random();
+    this.py[i] = this.random();
+    this.vx[i] = 0;
+    this.vy[i] = 0;
+    this.alive[i] = 1;
+    this._gridTime = -1;
+  };
+
+  /** 全粒子を撒き直す（世代交代の演出用） */
+  ParticleLife.prototype.scatter = function () {
+    for (var i = 0; i < this.N; i++) {
+      this.px[i] = this.random();
+      this.py[i] = this.random();
+      this.vx[i] = 0;
+      this.vy[i] = 0;
+      this.alive[i] = 1;
+    }
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.countAlive = function () {
+    var n = 0;
+    for (var i = 0; i < this.N; i++) n += this.alive[i];
+    return n;
+  };
+
+  ParticleLife.prototype._buildGrid = function () {
+    if (this._gridTime === this.time) return;
+    var N = this.N, C = this.C, nc = C * C;
+    var start = this.gStart, ptr = this.gPtr, order = this.gOrder, cellOf = this.gCell;
+    var px = this.px, py = this.py, alive = this.alive;
+    start.fill(0);
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) { cellOf[i] = -1; continue; }
+      var cx = (px[i] * C) | 0, cy = (py[i] * C) | 0;
+      if (cx >= C) cx = C - 1; if (cy >= C) cy = C - 1;
+      var c = cy * C + cx;
+      cellOf[i] = c;
+      start[c + 1]++;
+    }
+    for (var c = 0; c < nc; c++) start[c + 1] += start[c];
+    for (var k = 0; k < nc + 1; k++) ptr[k] = start[k];
+    for (var q = 0; q < N; q++) {
+      if (cellOf[q] >= 0) order[ptr[cellOf[q]]++] = q;
+    }
+    this._gridTime = this.time;
+  };
+
+  /** 1ステップ（元実装の step() と同じ式） */
+  ParticleLife.prototype.step = function () {
+    this._buildGrid();
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var tp = this.type, alive = this.alive, M = this.M;
+    var C = this.C, start = this.gStart, order = this.gOrder, cellOf = this.gCell;
+    var rmax = this.rmax, r2 = rmax * rmax, beta = this.beta, ib = 1 / (1 - beta);
+    var dt = this.dt, F = this.F;
+    var ff = Math.pow(0.5, dt / this.half);
+    var t, row, c, cx, cy, xi, yi, fx, fy;
+    var oy, ox, yy, cc, e, k, j, dx, dy, d2, d, r, f, s;
+
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      xi = px[i]; yi = py[i]; row = tp[i] * MK; c = cellOf[i];
+      cx = c % C; cy = (c / C) | 0;
+      fx = 0; fy = 0;
+      for (oy = -1; oy <= 1; oy++) {
+        yy = (cy + oy + C) % C;
+        for (ox = -1; ox <= 1; ox++) {
+          cc = yy * C + ((cx + ox + C) % C);
+          e = start[cc + 1];
+          for (k = start[cc]; k < e; k++) {
+            j = order[k];
+            if (j === i) continue;
+            dx = px[j] - xi; dy = py[j] - yi;
+            if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+            if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+            d2 = dx * dx + dy * dy;
+            if (d2 >= r2 || d2 < 1e-12) continue;
+            d = Math.sqrt(d2);
+            r = d / rmax;
+            f = r < beta ? r / beta - 1 : M[row + tp[j]] * (1 - Math.abs(2 * r - 1 - beta) * ib);
+            s = f / d;
+            fx += dx * s; fy += dy * s;
+          }
+        }
+      }
+      vx[i] = vx[i] * ff + fx * F * dt;
+      vy[i] = vy[i] * ff + fy * F * dt;
+      var nx = xi + vx[i] * dt, ny = yi + vy[i] * dt;
+      if (nx >= 1) nx -= 1; else if (nx < 0) nx += 1;
+      if (ny >= 1) ny -= 1; else if (ny < 0) ny += 1;
+      px[i] = nx; py[i] = ny;
+    }
+    this.time += dt;
+    this._gridTime = -1;
+  };
+
+  function wrapDelta(a) {
+    if (a > 0.5) a -= 1; else if (a < -0.5) a += 1;
+    return a;
+  }
+
+  /** 半径 R 以内の粒子を列挙（R <= rmax を想定） */
+  ParticleLife.prototype.forEachNear = function (x, y, R, fn) {
+    this._buildGrid();
+    var C = this.C, start = this.gStart, order = this.gOrder, alive = this.alive;
+    var px = this.px, py = this.py;
+    var cx = (x * C) | 0, cy = (y * C) | 0;
+    if (cx >= C) cx = C - 1; if (cy >= C) cy = C - 1;
+    var R2 = R * R;
+    var span = Math.max(1, Math.ceil(R / this.rmax));
+    for (var oy = -span; oy <= span; oy++) {
+      var yy = (cy + oy + C * 2) % C;
+      for (var ox = -span; ox <= span; ox++) {
+        var cc = yy * C + ((cx + ox + C * 2) % C);
+        var e = start[cc + 1];
+        for (var k = start[cc]; k < e; k++) {
+          var j = order[k];
+          if (!alive[j]) continue;
+          var dx = wrapDelta(px[j] - x), dy = wrapDelta(py[j] - y);
+          var d2 = dx * dx + dy * dy;
+          if (d2 <= R2) fn(j, dx, dy);
+        }
+      }
+    }
+  };
+
+  /** カーソルへの吸引（元実装の magnet 相当）。sp<0 なら全種類 */
+  ParticleLife.prototype.impulseTo = function (x, y, R, sp, strength, centerSoft) {
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var tp = this.type, alive = this.alive;
+    var soft = centerSoft || 0.015;
+    var R2 = R * R;
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      if (sp >= 0 && tp[i] !== sp) continue;
+      var dx = wrapDelta(x - px[i]), dy = wrapDelta(y - py[i]);
+      var d2 = dx * dx + dy * dy;
+      if (d2 >= R2) continue;
+      var d = Math.sqrt(d2) || 1e-6;
+      var w = strength * (1 - d / R) * Math.min(1, d / soft);
+      if (w <= 0) continue;
+      vx[i] += (dx / d) * w;
+      vy[i] += (dy / d) * w;
+    }
+  };
+
+  /** 中心から外向きに弾く（元実装の burst 相当） */
+  ParticleLife.prototype.burst = function (x, y, R, strength) {
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var alive = this.alive, R2 = R * R;
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      var dx = wrapDelta(px[i] - x), dy = wrapDelta(py[i] - y);
+      var d2 = dx * dx + dy * dy;
+      if (d2 >= R2) continue;
+      var d = Math.sqrt(d2);
+      var w = strength * (1 - d / R);
+      if (d < 1e-5) {
+        var a = this.random() * Math.PI * 2;
+        vx[i] += Math.cos(a) * w; vy[i] += Math.sin(a) * w;
+      } else {
+        vx[i] += (dx / d) * w;
+        vy[i] += (dy / d) * w;
+      }
+    }
+  };
+
+  /** ゆるやかな海流（発散ゼロの流れ場）。ヒモを壊さずに漂わせる演出用 */
+  ParticleLife.prototype.applyFlow = function (amp, t, phase) {
+    if (!amp) return;
+    var kx = 2 * Math.PI * 1.3, ky = 2 * Math.PI * 0.9, om = 0.35;
+    var ph = phase || 0;
+    for (var i = 0; i < this.N; i++) {
+      if (!this.alive[i]) continue;
+      var x = this.px[i], y = this.py[i];
+      this.vx[i] += amp * ky * Math.cos(ky * y + ph) * Math.sin(kx * x + om * t + ph) * 0.02;
+      this.vy[i] += -amp * kx * Math.cos(kx * x + om * t + ph) * Math.sin(ky * y + ph) * 0.02;
+    }
+  };
+
+  ParticleLife.prototype.meanSpeed = function () {
+    var s = 0, n = 0;
+    for (var i = 0; i < this.N; i++) {
+      if (!this.alive[i]) continue;
+      s += Math.hypot(this.vx[i], this.vy[i]);
+      n++;
+    }
+    return n ? s / n : 0;
+  };
+
+  /* ---------- クラスタ解析（ヒモ検出） ------------------------
+   * 各粒子を「近い順に K 個」の近傍とつないだグラフの連結成分を「個体」とみなす。
+   * 半径しきい値方式より、ヒモの切れ目・絡まり・密度ムラに強い。
+   * 主成分分析で細長さ（elongation）を出し、ヒモかカタマリかを判定する。
+   */
+  ParticleLife.prototype.clusters = function (opts) {
+    opts = opts || {};
+    var kLink = opts.k != null ? opts.k : 2;
+    var maxR = opts.maxR != null ? opts.maxR : this.rmax * 0.7;
+    var minSize = opts.minSize != null ? opts.minSize : 8;
+    var wormElong = opts.wormElong != null ? opts.wormElong : 2.0;
+    var radiusLink = opts.linkR; // 半径方式にしたいとき
+    this._buildGrid();
+
+    var N = this.N, alive = this.alive, px = this.px, py = this.py;
+    var C = this.C, start = this.gStart, order = this.gOrder, cellOf = this.gCell;
+    var parent = this._ufParent, rank = this._ufRank;
+    var i, j, c, cx, cy, oy, ox, yy, cc, e, dx, dy, d2;
+    var kd = this._kd, kj = this._kj;
+    var maxR2 = maxR * maxR;
+    var link2 = radiusLink != null ? radiusLink * radiusLink : 0;
+
+    for (i = 0; i < N; i++) { parent[i] = alive[i] ? i : -1; rank[i] = 0; }
+
+    function find(x) {
+      while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+      return x;
+    }
+    function unite(a, b) {
+      a = find(a); b = find(b);
+      if (a === b) return;
+      if (rank[a] < rank[b]) parent[a] = b;
+      else if (rank[a] > rank[b]) parent[b] = a;
+      else { parent[b] = a; rank[a]++; }
+    }
+
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      c = cellOf[i];
+      cx = c % C; cy = (c / C) | 0;
+      var xi = px[i], yi = py[i];
+      if (radiusLink != null) {
+        for (oy = -1; oy <= 1; oy++) {
+          yy = (cy + oy + C) % C;
+          for (ox = -1; ox <= 1; ox++) {
+            cc = yy * C + ((cx + ox + C) % C);
+            e = start[cc + 1];
+            for (var kk = start[cc]; kk < e; kk++) {
+              j = order[kk];
+              if (j <= i) continue;
+              dx = px[j] - xi; dy = py[j] - yi;
+              if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+              if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+              d2 = dx * dx + dy * dy;
+              if (d2 < link2) unite(i, j);
+            }
+          }
+        }
+        continue;
+      }
+      // 近傍 k 個を距離順に保持
+      kd[0] = Infinity; kd[1] = Infinity; kd[2] = Infinity;
+      kj[0] = -1; kj[1] = -1; kj[2] = -1;
+      for (oy = -1; oy <= 1; oy++) {
+        yy = (cy + oy + C) % C;
+        for (ox = -1; ox <= 1; ox++) {
+          cc = yy * C + ((cx + ox + C) % C);
+          e = start[cc + 1];
+          for (var k2 = start[cc]; k2 < e; k2++) {
+            j = order[k2];
+            if (j === i) continue;
+            dx = px[j] - xi; dy = py[j] - yi;
+            if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+            if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+            d2 = dx * dx + dy * dy;
+            if (d2 >= maxR2 || d2 <= 0) continue;
+            var pos = -1;
+            for (var q = 0; q < kLink; q++) { if (d2 < kd[q]) { pos = q; break; } }
+            if (pos < 0) continue;
+            for (q = kLink - 1; q > pos; q--) { kd[q] = kd[q - 1]; kj[q] = kj[q - 1]; }
+            kd[pos] = d2; kj[pos] = j;
+          }
+        }
+      }
+      for (var q2 = 0; q2 < kLink; q2++) if (kj[q2] >= 0) unite(i, kj[q2]);
+    }
+
+    // 根を集める
+    var gen = ++this._gen;
+    var stamp = this._rootStamp, rootOf = this._rootOf;
+    var roots = [];
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      var r = find(i);
+      rootOf[i] = r;
+      if (stamp[r] !== gen) { stamp[r] = gen; roots.push(r); }
+    }
+
+    // 集計領域を初期化
+    var aggSize = this._aggSize, aggSx = this._aggSx, aggSy = this._aggSy;
+    var aggSxx = this._aggSxx, aggSyy = this._aggSyy, aggSxy = this._aggSxy;
+    var head = this._head, next = this._next;
+    for (var ri = 0; ri < roots.length; ri++) {
+      var rr = roots[ri];
+      aggSize[rr] = 0; aggSx[rr] = 0; aggSy[rr] = 0;
+      aggSxx[rr] = 0; aggSyy[rr] = 0; aggSxy[rr] = 0;
+      head[rr] = -1;
+    }
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      r = rootOf[i];
+      next[i] = head[r];
+      head[r] = i;
+      var x = px[i], y = py[i];
+      aggSize[r]++;
+      aggSx[r] += x; aggSy[r] += y;
+      aggSxx[r] += x * x; aggSyy[r] += y * y; aggSxy[r] += x * y;
+    }
+
+    var out = [];
+    for (ri = 0; ri < roots.length; ri++) {
+      r = roots[ri];
+      var size = aggSize[r];
+      if (size < minSize) continue;
+      var inv = 1 / size;
+      var mx = aggSx[r] * inv, my = aggSy[r] * inv;
+      var varX = Math.max(0, aggSxx[r] * inv - mx * mx);
+      var varY = Math.max(0, aggSyy[r] * inv - my * my);
+      var cov = aggSxy[r] * inv - mx * my;
+      var tr = varX + varY;
+      var disc = Math.sqrt(Math.max(0, (tr * tr) / 4 - (varX * varY - cov * cov)));
+      var l1 = tr / 2 + disc, l2 = Math.max(tr / 2 - disc, 1e-10);
+      var elong = Math.sqrt(l1 / l2);
+
+      var members = new Array(size);
+      var species = new Int32Array(this.K);
+      var m = head[r], mi = 0;
+      while (m !== -1) {
+        members[mi++] = m;
+        species[this.type[m]]++;
+        m = next[m];
+      }
+      var dom = 0;
+      for (var s = 1; s < this.K; s++) if (species[s] > species[dom]) dom = s;
+      var speciesCount = 0;
+      for (var s2 = 0; s2 < this.K; s2++) if (species[s2] > 0) speciesCount++;
+
+      out.push({
+        size: size,
+        cx: mx, cy: my,
+        varX: varX, varY: varY, cov: cov,
+        rx: 2.0 * Math.sqrt(l1) + 0.004,
+        ry: 2.0 * Math.sqrt(l2) + 0.004,
+        angle: 0.5 * Math.atan2(2 * cov, varX - varY),
+        elongation: elong,
+        isWorm: size >= 10 && elong >= wormElong,
+        dominant: dom,
+        species: species,
+        speciesCount: speciesCount,
+        members: members,
+      });
+    }
+    out.sort(function (a, b) { return b.size - a.size; });
+    if (out.length > 160) out.length = 160;
+    return out;
+  };
+
+  /** 捕獲したときの見た目用スコア（ゲーム側で倍率をかける） */
+  function specimenValue(c) {
+    var base = 6 + c.size * 1.1;
+    if (c.isWorm) base += 14 + Math.min(c.elongation, 10) * 2.2;
+    base += (c.speciesCount - 1) * 5;
+    return Math.round(base);
+  }
+
+  return {
+    MK: MK,
+    SIM_DEFAULTS: SIM_DEFAULTS,
+    PRESETS: PRESETS,
+    MATRIX_FNS: MATRIX_FNS,
+    mulberry32: mulberry32,
+    makePreset: makePreset,
+    buildMatrix: buildMatrix,
+    ParticleLife: ParticleLife,
+    specimenValue: specimenValue,
+    wrapDelta: wrapDelta,
+  };
+});
+
+</script>
+<script>
+/* ==== src/rules.js ==== */
+/* ============================================================
+ * Worm Lab — ゲームルール（DOM 非依存）
+ *  捕獲スコア・注文・世代交代の行列づくりなどをまとめる
+ * ============================================================ */
+(function (root, factory) {
+  var WL = (typeof module === 'object' && module.exports) ? require('./sim.js') : root.WL;
+  var api = factory(WL);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.WL = Object.assign(root.WL || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (WL) {
+  'use strict';
+
+  /* ---------- 注文（お題） -------------------------------------
+   * 捕獲した個体が条件を満たすとボーナス。tier で難易度を制御。
+   */
+  var ORDERS = [
+    { id: 'worm', label: '群れを 1つ', icon: '〜', bonus: 60, tier: 0,
+      check: function (c) { return c.isWorm && c.size >= 12; } },
+    { id: 'blob', label: 'まるいカタマリ (16粒〜)', icon: '●', bonus: 90, tier: 0,
+      check: function (c) { return !c.isWorm && c.size >= 16; } },
+    { id: 'tiny', label: 'こ群れ (10〜16粒)', icon: '•', bonus: 100, tier: 1,
+      check: function (c) { return c.isWorm && c.size >= 10 && c.size <= 16; } },
+    { id: 'long', label: 'ながい群れ (24粒〜)', icon: '〰', bonus: 130, tier: 1,
+      check: function (c) { return c.isWorm && c.size >= 24; } },
+    { id: 'color4', label: '4色の群れ', icon: '✿', bonus: 160, tier: 1,
+      check: function (c) { return c.isWorm && c.speciesCount >= 4; } },
+    { id: 'big', label: '大物 (35粒〜)', icon: '★', bonus: 200, tier: 2,
+      check: function (c) { return c.size >= 35; } },
+    { id: 'rainbow', label: '虹色の群れ (6色)', icon: '🌈', bonus: 240, tier: 2,
+      check: function (c) { return c.isWorm && c.speciesCount >= 6; } },
+  ];
+
+  function pickOrder(rng, elapsed, lastId) {
+    var maxTier = elapsed < 25 ? 0 : (elapsed < 55 ? 1 : 2);
+    var pool = [];
+    for (var i = 0; i < ORDERS.length; i++) {
+      var o = ORDERS[i];
+      if (o.tier <= maxTier && o.id !== lastId) pool.push(o);
+    }
+    return pool.length ? pool[Math.floor(rng() * pool.length)] : ORDERS[0];
+  }
+
+  function comboMultiplier(chain) {
+    return Math.min(2.5, 1 + 0.15 * Math.max(0, chain - 1));
+  }
+
+  /** 捕獲スコア（コンボ倍率込み） */
+  function captureScore(c, chain) {
+    return Math.round(WL.specimenValue(c) * comboMultiplier(chain));
+  }
+
+  /* ---------- 世代交代（波）の行列 -----------------------------
+   * 基本のプリセット行列を、種類ラベルの回転＋ほんの少しの揺らぎで
+   * 「別の世代」にする。ヒモらしさは保ったまま色の並びが変わる。
+   */
+  function waveMatrix(base, K, waveIndex, rng) {
+    var M = new Float32Array(K * K);
+    var rot = (waveIndex * 2) % K;
+    for (var i = 0; i < K; i++) {
+      for (var j = 0; j < K; j++) {
+        var pi = (i + rot) % K, pj = (j + rot) % K;
+        var v = base[pi * K + pj];
+        v += (rng() * 2 - 1) * 0.05; // ごく弱い揺らぎ
+        M[i * K + j] = Math.max(-1, Math.min(1, v));
+      }
+    }
+    return M;
+  }
+
+  function rankOf(score) {
+    if (score >= 6000) return 'S';
+    if (score >= 4000) return 'A';
+    if (score >= 2200) return 'B';
+    if (score >= 1000) return 'C';
+    return 'D';
+  }
+
+  return {
+    ORDERS: ORDERS,
+    pickOrder: pickOrder,
+    comboMultiplier: comboMultiplier,
+    captureScore: captureScore,
+    waveMatrix: waveMatrix,
+    rankOf: rankOf,
+  };
+});
+
+</script>
+<script>
+/* ==== src/game.js ==== */
+/* ============================================================
+ * Particle Scoop — Particle Life 捕獲ゲーム
+ *  sim.js（物理・クラスタ解析）と rules.js（お題・スコア）の上に、
+ *  描画・入力・捕獲・波（世代交代）・演出・サウンドを載せる。
+ * ============================================================ */
+(function () {
+  'use strict';
+
+  var WL = window.WL;
+  if (!WL) { console.error('WL not loaded'); return; }
+  var ParticleLife = WL.ParticleLife;
+  var makePreset = WL.makePreset;
+  var PRESETS = WL.PRESETS;
+  var specimenValue = WL.specimenValue;
+
+  /* ---------- 定数 ------------------------------------------- */
+  var COLORS = [
+    [110, 242, 192], [255, 209, 102], [255, 143, 163],
+    [157, 139, 255], [111, 198, 255], [255, 178, 107],
+  ];
+  var COLOR_HEX = ['#6ef2c0', '#ffd166', '#ff8fa3', '#9d8bff', '#6fc6ff', '#ffb26b'];
+  var SPORE_COLOR = [255, 78, 158];
+
+  var GAME = {
+    duration: 90,        // 秒
+    waveLen: 13.0,       // 世代交代の間隔
+    waves: 7,
+    scoopR: 0.078,       // 捕獲リング半径
+    attractR: 0.15,      // 吸引半径
+    magnet: 0.28,        // 吸引の強さ（1フレームの速度増分）
+    captureTime: 0.70,   // リング内に収め続ける時間
+    captureFrac: 0.48,   // クラスタの何割がリング内なら捕獲対象か
+    drain: 8.0,          // 吸引中のエネルギー消費 / 秒
+    regen: 7.0,          // 非吸引時の回復 / 秒
+    captureEnergy: 10,
+    burstCost: 16,
+    burstR: 0.17,
+    sporeCost: 28,
+    sporeR: 0.030,
+    flowAmp: 0.020,
+    comboWindow: 6.0,
+  };
+
+  var FIXED = 1 / 60;
+  var LS_BEST = 'himosui.best.v1';
+  var LS_MUTE = 'himosui.mute.v1';
+
+  /* ---------- DOM -------------------------------------------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var app = $('app');
+  var canvas = $('cv');
+  var ctx = canvas.getContext('2d');
+  var particleLayer = document.createElement('canvas');
+  var pctx = particleLayer.getContext('2d');
+  var bgCanvas = document.createElement('canvas');
+  var bgCtx = bgCanvas.getContext('2d');
+
+  var el = {
+    score: $('score'), combo: $('combo'),
+    waveLabel: $('wave-label'), timeText: $('time-text'), timeFill: $('timebar-fill'),
+    energyFill: $('energy-fill'), energyWrap: $('energy-wrap'),
+    captureCount: $('capture-count'),
+    orderCard: $('order-card'), orderLabel: $('order-label'), bottomBar: document.querySelector('.bottom'),
+    orderIcon: $('order-icon'), orderBonus: $('order-bonus'),
+    best: $('best'), bestTitle: $('best-title'),
+    toast: $('toast'),
+    hintSub: $('hint-sub'),
+    titleScreen: $('title-screen'), resultScreen: $('result-screen'), pauseScreen: $('pause-screen'),
+    resultScore: $('result-score'), rank: $('rank'), resultCaptures: $('result-captures'),
+    resultBiggest: $('result-biggest'), resultCombo: $('result-combo'), resultOrders: $('result-orders'),
+  };
+
+  /* ---------- レイアウト -------------------------------------- */
+  var W = 0, H = 0, S = 0, OX = 0, OY = 0, dpr = 1;
+  var sprites = [];
+  var coreSprites = [];
+
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    particleLayer.width = Math.max(1, Math.round(canvas.width * 0.62));
+    particleLayer.height = Math.max(1, Math.round(canvas.height * 0.62));
+    bgCanvas.width = canvas.width;
+    bgCanvas.height = canvas.height;
+    var hudH = W < 620 ? 62 : 70;
+    var botH = W < 620 ? 86 : 92;
+    var mobile = W < 620;
+    S = Math.max(220, Math.min(W - 16, H - hudH - botH - 10));
+    OX = (W - S) / 2;
+    if (mobile) {
+      // 縦長画面: 培養槽 + 注文 + 操作バー をまとめて中央に置く
+      var stackH = S + 12 + 72 + 8 + botH;
+      var top = Math.max(hudH + 6, Math.round((H - stackH) / 2));
+      OY = top;
+      el.orderCard.style.top = (OY + S + 10) + 'px';
+      el.orderCard.style.bottom = 'auto';
+      el.bottomBar.style.top = (OY + S + 10 + 70) + 'px';
+      el.bottomBar.style.bottom = 'auto';
+    } else {
+      OY = hudH + (H - hudH - botH - S) / 2;
+      el.orderCard.style.top = '';
+      el.orderCard.style.bottom = '';
+      el.bottomBar.style.top = '';
+      el.bottomBar.style.bottom = '';
+    }
+    buildSprites();
+    buildBackground();
+    pctx.setTransform(1, 0, 0, 1, 0, 0);
+    pctx.clearRect(0, 0, particleLayer.width, particleLayer.height);
+  }
+
+  function buildSprites() {
+    sprites = COLORS.map(function (c) {
+      var size = 64;
+      var cv = document.createElement('canvas');
+      cv.width = cv.height = size;
+      var g = cv.getContext('2d');
+      var grd = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+      grd.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.34)');
+      grd.addColorStop(0.42, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.17)');
+      grd.addColorStop(0.76, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.05)');
+      grd.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0)');
+      g.fillStyle = grd;
+      g.beginPath(); g.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); g.fill();
+      return cv;
+    });
+    // コア用（はっきりした色の粒）
+    coreSprites = COLORS.map(function (c) {
+      var size = 32;
+      var cv = document.createElement('canvas');
+      cv.width = cv.height = size;
+      var g = cv.getContext('2d');
+      g.beginPath(); g.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
+      g.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+      g.fill();
+      // ハイライトなし（色だけで丸く見せる）
+      return cv;
+    });
+  }
+
+  function buildBackground() {
+    var w = bgCanvas.width, h = bgCanvas.height;
+    bgCtx.setTransform(1, 0, 0, 1, 0, 0);
+    var g = bgCtx.createRadialGradient(w * 0.5, h * 0.42, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.75);
+    g.addColorStop(0, '#0a1428');
+    g.addColorStop(0.45, '#060b18');
+    g.addColorStop(1, '#02040a');
+    bgCtx.fillStyle = g;
+    bgCtx.fillRect(0, 0, w, h);
+
+    // うっすらとした色のにじみ
+    var blooms = [
+      { x: 0.18, y: 0.12, r: 0.5, c: 'rgba(70,200,255,0.10)' },
+      { x: 0.85, y: 0.2, r: 0.45, c: 'rgba(255,110,170,0.08)' },
+      { x: 0.7, y: 0.9, r: 0.55, c: 'rgba(110,242,192,0.07)' },
+    ];
+    for (var i = 0; i < blooms.length; i++) {
+      var b = blooms[i];
+      var bg = bgCtx.createRadialGradient(b.x * w, b.y * h, 0, b.x * w, b.y * h, b.r * Math.max(w, h));
+      bg.addColorStop(0, b.c);
+      bg.addColorStop(1, 'rgba(0,0,0,0)');
+      bgCtx.fillStyle = bg;
+      bgCtx.fillRect(0, 0, w, h);
+    }
+    // 星屑
+    var rng = WL.mulberry32(20261112);
+    bgCtx.fillStyle = 'rgba(200,225,255,0.5)';
+    for (var k = 0; k < 110; k++) {
+      var x = rng() * w, y = rng() * h, r = (rng() * 1.4 + 0.3) * dpr;
+      bgCtx.globalAlpha = 0.10 + rng() * 0.35;
+      bgCtx.beginPath(); bgCtx.arc(x, y, r, 0, Math.PI * 2); bgCtx.fill();
+    }
+    bgCtx.globalAlpha = 1;
+  }
+
+  /* ---------- サウンド ---------------------------------------- */
+  var Sound = {
+    ctx: null, master: null, on: true,
+    init: function () {
+      if (!this.ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.30;
+        this.master.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone: function (freq, dur, type, vol, slideTo, delay) {
+      if (!this.on || !this.ctx) return;
+      var t0 = this.ctx.currentTime + (delay || 0);
+      var o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, t0);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(this.master);
+      o.start(t0); o.stop(t0 + dur + 0.03);
+    },
+    noise: function (dur, vol, freq, q) {
+      if (!this.on || !this.ctx) return;
+      var t0 = this.ctx.currentTime;
+      var len = Math.floor(this.ctx.sampleRate * dur);
+      var buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+      var src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      var f = this.ctx.createBiquadFilter();
+      f.type = 'bandpass'; f.frequency.value = freq || 900; f.Q.value = q || 1.2;
+      var g = this.ctx.createGain();
+      g.gain.setValueAtTime(vol, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(f); f.connect(g); g.connect(this.master);
+      src.start(t0);
+    },
+    capture: function (chain) {
+      var base = 480 * Math.pow(1.055, Math.min(chain, 12));
+      this.tone(base, 0.12, 'triangle', 0.20);
+      this.tone(base * 1.5, 0.16, 'triangle', 0.13, null, 0.05);
+      this.tone(base * 2, 0.22, 'sine', 0.10, null, 0.10);
+    },
+    order: function () {
+      this.tone(880, 0.16, 'sine', 0.16);
+      this.tone(1174, 0.2, 'sine', 0.13, null, 0.08);
+      this.tone(1568, 0.28, 'sine', 0.10, null, 0.16);
+    },
+    pop: function () {
+      this.noise(0.28, 0.5, 320, 0.8);
+      this.tone(160, 0.26, 'sawtooth', 0.10, 60);
+    },
+    burst: function () {
+      this.noise(0.24, 0.4, 520, 0.6);
+      this.tone(220, 0.18, 'sine', 0.08, 90);
+    },
+    wave: function () {
+      this.tone(320, 0.5, 'sine', 0.10, 960);
+      this.tone(240, 0.55, 'triangle', 0.06, 720, 0.04);
+    },
+    low: function () {
+      this.tone(110, 0.2, 'square', 0.05);
+    },
+  };
+
+  /* ---------- 状態 -------------------------------------------- */
+  var state = {
+    mode: 'title',           // title | play | result
+    paused: false,
+    demo: false,
+    presetId: 'himo',
+    sim: null, base: null, K: 6, seed: 1, rng: null,
+    clusters: [], clusterTimer: 0,
+    timeLeft: GAME.duration, time: 0,
+    wave: 1, waveTimer: 0,
+    score: 0, chain: 0, combo: 1, lastCapture: -99, maxChain: 0,
+    captures: 0, biggest: 0, ordersDone: 0,
+    energy: 100, magnet: false,
+    pointer: { x: 0.5, y: 0.5, down: false },
+    scoop: { x: 0.5, y: 0.5 },
+    progress: 0, target: null, grace: 0,
+    order: null, orderPending: 0, orderFlash: 0,
+    spores: [], flyers: [], texts: [], rings: [], sparks: [],
+    respawn: [],
+    burstCd: 0,
+    shake: 0, flash: 0,
+    jarPulse: 0,
+    best: 0,
+    hintTimer: 0,
+    ai: { nextThink: 0, target: null, burstAt: 0 },
+    acc: 0, last: 0,
+  };
+
+  function loadBest() {
+    try { var v = parseInt(localStorage.getItem(LS_BEST) || '0', 10); state.best = isNaN(v) ? 0 : v; } catch (e) { state.best = 0; }
+    el.best.textContent = state.best;
+    el.bestTitle.textContent = state.best;
+  }
+  function saveBest() {
+    if (state.score > state.best) {
+      state.best = state.score;
+      try { localStorage.setItem(LS_BEST, String(state.best)); } catch (e) { }
+      el.best.textContent = state.best;
+      el.bestTitle.textContent = state.best;
+    }
+  }
+
+  /* ---------- シミュレーション生成 ---------------------------- */
+  function particleCount() {
+    return Math.round(Math.min(3400, Math.max(2300, 2300 + (S - 400) * 2.6)));
+  }
+
+  function makeWorld(presetId, seed) {
+    var preset = makePreset(presetId, seed);
+    var sim = new ParticleLife({
+      N: particleCount(), K: preset.K, seed: seed,
+      rmax: preset.params.rmax, half: preset.params.half,
+      F: preset.params.F, beta: preset.params.beta, dt: preset.params.dt,
+      matrix: preset.matrix,
+    });
+    return { sim: sim, base: preset.matrix, K: preset.K, rng: WL.mulberry32((seed ^ 0x5bd1e995) >>> 0) };
+  }
+
+  function setTitleWorld(presetId) {
+    var seed = (Math.random() * 1e9) >>> 0;
+    var world = makeWorld(presetId, seed);
+    state.sim = world.sim; state.base = world.base; state.K = world.K; state.rng = world.rng;
+    state.clusters = [];
+    state.wavePhase = Math.random() * Math.PI * 2;
+  }
+
+  /* ---------- 画面遷移 ---------------------------------------- */
+  function show(titleVisible, resultVisible) {
+    el.titleScreen.classList.toggle('hidden', !titleVisible);
+    el.resultScreen.classList.toggle('hidden', !resultVisible);
+    el.pauseScreen.classList.add('hidden');
+    app.classList.toggle('overlay', titleVisible || resultVisible);
+  }
+
+  function goTitle() {
+    el.best.textContent = state.best;
+    el.bestTitle.textContent = state.best;
+    state.mode = 'title';
+    state.paused = false;
+    state.pointer.down = false;
+    state.magnet = false;
+    setTitleWorld(state.presetId);
+    show(true, false);
+    canvas.classList.remove('grabbing');
+    syncPresetCards();
+  }
+
+  function startGame(seedOverride) {
+    var presetId = state.presetId;
+    var seed = seedOverride != null ? (seedOverride >>> 0) : ((Math.random() * 1e9) >>> 0);
+    var world = makeWorld(presetId, seed);
+    state.sim = world.sim; state.base = world.base; state.K = world.K; state.rng = world.rng; state.seed = seed;
+    state.mode = 'play';
+    state.paused = false;
+    state.timeLeft = GAME.duration;
+    state.time = 0;
+    state.score = 0; state.chain = 0; state.combo = 1; state.lastCapture = -99; state.maxChain = 0;
+    state.captures = 0; state.biggest = 0; state.ordersDone = 0;
+    state.energy = 100;
+    state.progress = 0; state.target = null;
+    state.order = null; state.orderPending = 0; state.orderFlash = 0;
+    state.spores = []; state.flyers = []; state.texts = []; state.rings = []; state.sparks = [];
+    state.respawn = [];
+    state.burstCd = 0; state.shake = 0; state.flash = 0; state.jarPulse = 0;
+    state.wave = 1; state.waveTimer = 0;
+    state.grace = 0;
+    state.wavePhase = Math.random() * Math.PI * 2;
+    state.pointer.x = 0.5; state.pointer.y = 0.5; state.pointer.down = false;
+    state.scoop.x = 0.5; state.scoop.y = 0.5;
+    state.clusters = [];
+    state.clusterTimer = 0;
+    state.ai = { nextThink: 0, target: null, burstAt: 0 };
+    state.acc = 0;
+    state.hintTimer = 0;
+    Sound.init();
+    applyWave(1, true);
+    show(false, false);
+    toast('培養開始 — 群れが育つのを待とう');
+    canvas.classList.add('grabbing');
+    el.orderCard.classList.remove('done');
+  }
+
+  function endGame() {
+    state.mode = 'result';
+    state.pointer.down = false;
+    state.magnet = false;
+    state.progress = 0;
+    saveBest();
+    el.rank.textContent = WL.rankOf(state.score);
+    el.resultScore.textContent = state.score;
+    el.resultCaptures.textContent = state.captures;
+    el.resultBiggest.textContent = state.biggest + '粒';
+    el.resultCombo.textContent = '×' + state.maxChain.toFixed(1);
+    el.resultOrders.textContent = state.ordersDone;
+    show(false, true);
+    canvas.classList.remove('grabbing');
+    Sound.order();
+  }
+
+  /* ---------- 世代交代 ---------------------------------------- */
+  function applyWave(n, first) {
+    var sim = state.sim;
+    if (!first) {
+      sim.setMatrix(WL.waveMatrix(state.base, state.K, n, state.rng), state.K);
+      sim.scatter();
+      addRing(0.5, 0.5, 0.01, 0.72, 'rgba(127,198,255,0.9)', 0.6);
+      state.flash = 0.45;
+      state.shake = Math.max(state.shake, 6);
+      Sound.wave();
+      toast('第' + n + '世代 — 培養液を入れ替えた');
+    }
+    state.wave = n;
+    state.waveTimer = 0;
+    state.grace = n === 1 ? 1.8 : 1.4;
+    state.wavePhase = Math.random() * Math.PI * 2;
+    state.clusters = [];
+    state.progress = 0; state.target = null;
+    state.spores = [];
+    var count = Math.min(2 + n, 5);
+    for (var i = 0; i < count; i++) spawnSpore(i === 0 && first);
+    state.orderPending = 0;
+    state.order = WL.pickOrder(state.rng, state.time, state.order && state.order.id);
+    state.orderFlash = 0;
+    el.orderCard.classList.remove('done');
+    updateOrderCard();
+  }
+
+  /* ---------- 胞子（ハザード） -------------------------------- */
+  function spawnSpore(avoidCenter) {
+    var x, y;
+    for (var tries = 0; tries < 12; tries++) {
+      x = 0.08 + Math.random() * 0.84;
+      y = 0.08 + Math.random() * 0.84;
+      if (avoidCenter && Math.hypot(x - 0.5, y - 0.5) < 0.28) continue;
+      break;
+    }
+    var a = Math.random() * Math.PI * 2;
+    var sp = 0.012 + Math.random() * 0.014;
+    state.spores.push({
+      x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      phase: Math.random() * Math.PI * 2, dead: false, respawnAt: 0, scale: 1,
+    });
+  }
+
+  function popSpore(sp) {
+    sp.dead = true;
+    sp.respawnAt = state.time + 7;
+    sp.scale = 0;
+    state.energy = Math.max(0, state.energy - GAME.sporeCost);
+    state.progress = 0; state.target = null;
+    state.shake = Math.max(state.shake, 11);
+    state.flash = Math.max(state.flash, 0.5);
+    addRing(sp.x, sp.y, 0.02, 0.13, 'rgba(255,90,170,0.9)', 0.35);
+    for (var i = 0; i < 14; i++) {
+      var a = Math.random() * Math.PI * 2, spd = 0.05 + Math.random() * 0.12;
+      addSpark(sp.x, sp.y, Math.cos(a) * spd, Math.sin(a) * spd, SPORE_COLOR, 0.5);
+    }
+    addText(sp.x, sp.y - 0.03, 'バチッ! -' + GAME.sporeCost, '#ff7fb8', 18);
+    toast('トゲ胞子にさわった…！ エネルギー -' + GAME.sporeCost);
+    Sound.pop();
+  }
+
+  /* ---------- 捕獲 -------------------------------------------- */
+  function capture(cluster) {
+    var sim = state.sim;
+    state.chain = (state.time - state.lastCapture < GAME.comboWindow) ? state.chain + 1 : 1;
+    state.lastCapture = state.time;
+    state.combo = WL.comboMultiplier(state.chain);
+    state.maxChain = Math.max(state.maxChain, state.combo);
+    var gained = Math.round(specimenValue(cluster) * state.combo);
+    state.score += gained;
+    state.captures++;
+    if (cluster.size > state.biggest) state.biggest = cluster.size;
+    state.energy = Math.min(100, state.energy + GAME.captureEnergy);
+    state.jarPulse = 1;
+    state.shake = Math.max(state.shake, 4);
+    state.flash = Math.max(state.flash, 0.22);
+
+    for (var m = 0; m < cluster.members.length; m++) {
+      var idx = cluster.members[m];
+      var col = COLORS[sim.type[idx] % COLORS.length];
+      state.flyers.push({
+        x: sim.px[idx], y: sim.py[idx],
+        t: -Math.random() * 0.12, dur: 0.5 + Math.random() * 0.4,
+        color: col, r: 0.6 + Math.random() * 0.8,
+      });
+      sim.setAlive(idx, false);
+      state.respawn.push({ i: idx, at: state.time + 1.5 + Math.random() * 2.2 });
+    }
+    addRing(cluster.cx, cluster.cy, 0.01, 0.075 + Math.min(cluster.size, 60) * 0.0008, 'rgba(150,255,225,0.95)', 0.4);
+    addText(cluster.cx, cluster.cy - 0.02, '+' + gained, '#a8ffe4', 26);
+    for (var s = 0; s < 12; s++) {
+      var a = Math.random() * Math.PI * 2, spd = 0.03 + Math.random() * 0.09;
+      addSpark(cluster.cx, cluster.cy, Math.cos(a) * spd, Math.sin(a) * spd, COLORS[cluster.dominant], 0.6);
+    }
+    Sound.capture(state.chain);
+
+    if (state.order && state.order.check(cluster)) {
+      state.score += state.order.bonus;
+      state.ordersDone++;
+      addText(cluster.cx, cluster.cy - 0.075, '注文達成 +' + state.order.bonus, '#ffd166', 19);
+      state.order = null;
+      state.orderPending = 1.2;
+      state.orderFlash = 1;
+      el.orderCard.classList.add('done');
+      Sound.order();
+    }
+    state.progress = 0;
+    state.target = null;
+  }
+
+  /* ---------- 入力 -------------------------------------------- */
+  function pointerToNorm(e) {
+    return {
+      x: Math.max(0, Math.min(1, (e.clientX - OX) / S)),
+      y: Math.max(0, Math.min(1, (e.clientY - OY) / S)),
+    };
+  }
+
+  function bindInput() {
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    canvas.addEventListener('pointerdown', function (e) {
+      if (state.mode !== 'play' || state.paused) return;
+      e.preventDefault();
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
+      var p = pointerToNorm(e);
+      state.pointer.x = p.x; state.pointer.y = p.y;
+      state.pointer.down = true;
+      Sound.init();
+    });
+    canvas.addEventListener('pointermove', function (e) {
+      if (state.mode !== 'play' || state.paused) return;
+      var p = pointerToNorm(e);
+      state.pointer.x = p.x; state.pointer.y = p.y;
+      if (e.pointerType === 'mouse' && e.buttons === 0) state.pointer.down = false;
+    });
+    window.addEventListener('pointerup', function () { state.pointer.down = false; });
+    window.addEventListener('pointercancel', function () { state.pointer.down = false; });
+    window.addEventListener('blur', function () { state.pointer.down = false; });
+
+    window.addEventListener('keydown', function (e) {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (state.mode === 'play' && !state.paused) burst();
+        else if (state.mode === 'title') startGame();
+      } else if (e.code === 'Escape' || e.code === 'KeyP') {
+        if (state.mode === 'play') togglePause();
+      } else if (e.code === 'KeyM') {
+        toggleMute();
+      } else if (e.code === 'Enter') {
+        if (state.mode === 'title') startGame();
+        else if (state.mode === 'result') startGame();
+      }
+    });
+
+    $('start-btn').addEventListener('click', function () {
+      Sound.init();
+      startGame();
+    });
+    $('retry-btn').addEventListener('click', function () { startGame(); });
+    $('title-btn').addEventListener('click', goTitle);
+    $('resume-btn').addEventListener('click', function () { togglePause(); });
+    $('pause-btn').addEventListener('click', function () { if (state.mode === 'play') togglePause(); });
+    $('mute-btn').addEventListener('click', toggleMute);
+  }
+
+  function togglePause() {
+    if (state.mode !== 'play') return;
+    state.paused = !state.paused;
+    el.pauseScreen.classList.toggle('hidden', !state.paused);
+    if (state.paused) { state.pointer.down = false; }
+  }
+
+  function toggleMute() {
+    Sound.on = !Sound.on;
+    $('mute-btn').textContent = Sound.on ? '🔊' : '🔇';
+    try { localStorage.setItem(LS_MUTE, Sound.on ? '1' : '0'); } catch (e) { }
+    if (Sound.on) Sound.init();
+  }
+
+  function burst() {
+    if (state.burstCd > 0 || state.energy < GAME.burstCost) {
+      if (state.energy < GAME.burstCost) toast('エネルギーが足りない…');
+      return;
+    }
+    state.energy -= GAME.burstCost;
+    state.burstCd = 0.38;
+    state.sim.burst(state.scoop.x, state.scoop.y, GAME.burstR, 1.15);
+    for (var i = 0; i < state.spores.length; i++) {
+      var sp = state.spores[i];
+      if (sp.dead) continue;
+      var dx = WL.wrapDelta(sp.x - state.scoop.x), dy = WL.wrapDelta(sp.y - state.scoop.y);
+      var d = Math.hypot(dx, dy);
+      if (d < GAME.burstR * 1.15) {
+        var f = (1 - d / (GAME.burstR * 1.15)) * 0.10;
+        sp.vx += (dx / (d || 1)) * f; sp.vy += (dy / (d || 1)) * f;
+      }
+    }
+    addRing(state.scoop.x, state.scoop.y, 0.02, GAME.burstR, 'rgba(190,230,255,0.85)', 0.3);
+    state.shake = Math.max(state.shake, 6);
+    Sound.burst();
+  }
+
+  /* ---------- 波（タイトル画面の背景） ------------------------ */
+  function updateAmbient(dt) {
+    var sim = state.sim;
+    if (!sim) return;
+    sim.applyFlow(GAME.flowAmp * 0.9, sim.time, state.wavePhase || 0);
+    sim.step();
+    state.clusterTimer += dt;
+    if (state.clusterTimer > 0.09) {
+      state.clusterTimer = 0;
+      state.clusters = sim.clusters({ minSize: 10, k: 2, maxR: sim.rmax * 0.7 });
+    }
+    updateEffects(dt);
+  }
+
+  /* ---------- プレイ更新 -------------------------------------- */
+  function updatePlay(dt) {
+    var sim = state.sim;
+    state.time += dt;
+    state.timeLeft -= dt;
+    if (state.timeLeft <= 0) { endGame(); return; }
+    state.waveTimer += dt;
+    if (state.waveTimer >= GAME.waveLen && state.wave < GAME.waves) applyWave(state.wave + 1);
+
+    sim.applyFlow(GAME.flowAmp, sim.time, state.wavePhase);
+    sim.step();
+
+    // 吸引（磁石）
+    if (state.grace > 0) state.grace = Math.max(0, state.grace - dt);
+    var magnetOn = state.pointer.down && state.energy > 0.5 && state.grace <= 0;
+    state.magnet = magnetOn;
+    if (magnetOn) {
+      sim.impulseTo(state.scoop.x, state.scoop.y, GAME.attractR, -1, GAME.magnet, 0.018);
+      state.energy -= GAME.drain * dt;
+      if (state.energy < 0) state.energy = 0;
+    } else {
+      state.energy += GAME.regen * dt;
+      if (state.energy > 100) state.energy = 100;
+    }
+    state.energy = Math.max(0, Math.min(100, state.energy));
+
+    // リングの追従
+    var follow = 1 - Math.exp(-dt * 16);
+    state.scoop.x += (state.pointer.x - state.scoop.x) * follow;
+    state.scoop.y += (state.pointer.y - state.scoop.y) * follow;
+
+    // クラスタ解析（15Hz）
+    state.clusterTimer += dt;
+    if (state.clusterTimer >= 1 / 15) {
+      state.clusterTimer = 0;
+      state.clusters = sim.clusters({ minSize: 8, k: 2, maxR: sim.rmax * 0.7 });
+    }
+
+    updateCapture(dt, magnetOn);
+    updateSpores(dt);
+    updateRespawn();
+    updateEffects(dt);
+
+    if (state.burstCd > 0) state.burstCd -= dt;
+    state.hintTimer += dt;
+    if (state.orderPending > 0) {
+      state.orderPending -= dt;
+      if (state.orderPending <= 0) {
+        state.order = WL.pickOrder(state.rng, state.time, state.order && state.order.id);
+        state.orderFlash = 0;
+        el.orderCard.classList.remove('done');
+        updateOrderCard();
+      }
+    }
+    if (state.orderFlash > 0) state.orderFlash -= dt;
+
+    if (state.demo && state.demoAI) demoThink(dt);
+  }
+
+  function updateCapture(dt, magnetOn) {
+    var sim = state.sim;
+    var R2 = GAME.scoopR * GAME.scoopR;
+    var best = null, bestFrac = 0;
+    for (var ci = 0; ci < state.clusters.length; ci++) {
+      var c = state.clusters[ci];
+      if (c.size < 9) continue;
+      var inside = 0;
+      var members = c.members;
+      for (var m = 0; m < members.length; m++) {
+        var idx = members[m];
+        var dx = WL.wrapDelta(state.scoop.x - sim.px[idx]);
+        var dy = WL.wrapDelta(state.scoop.y - sim.py[idx]);
+        if (dx * dx + dy * dy <= R2) inside++;
+      }
+      var frac = inside / c.size;
+      if (frac > bestFrac) { bestFrac = frac; best = c; }
+    }
+    var active = magnetOn && best && bestFrac >= GAME.captureFrac;
+    if (active) {
+      var continueTarget = state.target &&
+        Math.hypot(WL.wrapDelta(best.cx - state.target.cx), WL.wrapDelta(best.cy - state.target.cy)) < 0.09;
+      if (!continueTarget) state.progress = 0;
+      state.target = best;
+      state.progress += dt / GAME.captureTime;
+      if (state.progress >= 1) capture(best);
+    } else {
+      state.progress = Math.max(0, state.progress - dt * 2.2);
+      if (state.progress === 0) state.target = null;
+    }
+  }
+
+  function updateSpores(dt) {
+    var sim = state.sim;
+    for (var i = 0; i < state.spores.length; i++) {
+      var sp = state.spores[i];
+      if (sp.dead) {
+        if (state.time > sp.respawnAt) {
+          sp.dead = false; sp.scale = 1;
+          var a = Math.random() * Math.PI * 2;
+          sp.x = 0.08 + Math.random() * 0.84;
+          sp.y = 0.08 + Math.random() * 0.84;
+          sp.vx = Math.cos(a) * 0.015; sp.vy = Math.sin(a) * 0.015;
+        } else continue;
+      }
+      sp.phase += dt;
+      // ゆらゆら漂う
+      sp.vx += (Math.random() - 0.5) * 0.006 * dt * 60 * 0.02;
+      sp.vy += (Math.random() - 0.5) * 0.006 * dt * 60 * 0.02;
+      var spd = Math.hypot(sp.vx, sp.vy);
+      var maxSpd = 0.030, minSpd = 0.010;
+      if (spd > maxSpd) { sp.vx *= maxSpd / spd; sp.vy *= maxSpd / spd; }
+      else if (spd < minSpd) { if (spd < 1e-6) { sp.vx = 0.01; sp.vy = 0; } else { sp.vx *= minSpd / spd; sp.vy *= minSpd / spd; } }
+      sp.x += sp.vx * dt; sp.y += sp.vy * dt;
+      if (sp.x < 0.03) { sp.x = 0.03; sp.vx = Math.abs(sp.vx); }
+      if (sp.x > 0.97) { sp.x = 0.97; sp.vx = -Math.abs(sp.vx); }
+      if (sp.y < 0.03) { sp.y = 0.03; sp.vy = Math.abs(sp.vy); }
+      if (sp.y > 0.97) { sp.y = 0.97; sp.vy = -Math.abs(sp.vy); }
+      // まわりの粒子を押しのける
+      sim.burst(sp.x, sp.y, 0.055, 0.06 * dt * 60);
+      // 吸引中のリングと接触したら破裂（待機中は安全）
+      if (state.magnet && state.grace <= 0) {
+        var d = Math.hypot(WL.wrapDelta(state.scoop.x - sp.x), WL.wrapDelta(state.scoop.y - sp.y));
+        if (d < GAME.sporeR + GAME.scoopR * 0.55) popSpore(sp);
+      }
+    }
+  }
+
+  function updateRespawn() {
+    var keep = [];
+    for (var i = 0; i < state.respawn.length; i++) {
+      var r = state.respawn[i];
+      if (state.time >= r.at) state.sim.respawn(r.i);
+      else keep.push(r);
+    }
+    state.respawn = keep;
+  }
+
+  function updateEffects(dt) {
+    state.shake = Math.max(0, state.shake - dt * 26);
+    state.flash = Math.max(0, state.flash - dt * 2.2);
+    state.jarPulse = Math.max(0, state.jarPulse - dt * 2.4);
+    for (var i = state.flyers.length - 1; i >= 0; i--) {
+      var f = state.flyers[i];
+      f.t += dt;
+      if (f.t > f.dur) state.flyers.splice(i, 1);
+    }
+    for (var j = state.texts.length - 1; j >= 0; j--) {
+      var t = state.texts[j];
+      t.t += dt;
+      if (t.t > t.dur) state.texts.splice(j, 1);
+    }
+    for (var k = state.rings.length - 1; k >= 0; k--) {
+      var r = state.rings[k];
+      r.t += dt;
+      if (r.t > r.dur) state.rings.splice(k, 1);
+    }
+    for (var s = state.sparks.length - 1; s >= 0; s--) {
+      var p = state.sparks[s];
+      p.t += dt;
+      p.vx *= 0.96; p.vy *= 0.96;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.t > p.dur) state.sparks.splice(s, 1);
+    }
+  }
+
+  function addText(x, y, text, color, size) {
+    state.texts.push({ x: x, y: y, text: text, color: color, size: size || 22, t: 0, dur: 1.25 });
+  }
+  function addRing(x, y, r0, r1, color, dur) {
+    state.rings.push({ x: x, y: y, r0: r0, r1: r1, color: color, t: 0, dur: dur || 0.4 });
+  }
+  function addSpark(x, y, vx, vy, color, dur) {
+    state.sparks.push({ x: x, y: y, vx: vx, vy: vy, color: color, t: 0, dur: dur || 0.5, r: 1 + Math.random() * 1.6 });
+  }
+  function toast(text) {
+    el.toast.textContent = text;
+    el.toast.classList.remove('show');
+    void el.toast.offsetWidth;
+    el.toast.classList.add('show');
+  }
+  function updateOrderCard() {
+    if (!state.order) {
+      el.orderLabel.textContent = 'つぎの注文を準備中…';
+      el.orderIcon.textContent = '…';
+      el.orderBonus.textContent = '';
+      return;
+    }
+    el.orderLabel.textContent = state.order.label;
+    el.orderIcon.textContent = state.order.icon;
+    el.orderBonus.textContent = '+' + state.order.bonus;
+  }
+
+  /* ---------- デモ AI（自動プレイ / スクショ用） -------------- */
+  function demoThink(dt) {
+    if (state.time > state.ai.nextThink) {
+      state.ai.nextThink = state.time + 0.65;
+      var best = null, bestScore = -1e9;
+      for (var i = 0; i < state.clusters.length; i++) {
+        var c = state.clusters[i];
+        if (c.size < 12) continue;
+        var d = Math.hypot(WL.wrapDelta(c.cx - state.scoop.x), WL.wrapDelta(c.cy - state.scoop.y));
+        var gain = (c.isWorm ? 1.8 : 0.7) * Math.min(c.size, 45) - d * 160;
+        if (gain > bestScore) { bestScore = gain; best = c; }
+      }
+      state.ai.target = best ? { x: best.cx, y: best.cy, size: best.size, worm: best.isWorm } : null;
+    }
+    var t = state.ai.target;
+    if (t) {
+      var dx = WL.wrapDelta(t.x - state.pointer.x), dy = WL.wrapDelta(t.y - state.pointer.y);
+      var dd = Math.hypot(dx, dy);
+      var step = Math.min(dd, dt * 0.55);
+      if (dd > 1e-6) { state.pointer.x += (dx / dd) * step; state.pointer.y += (dy / dd) * step; }
+    } else {
+      state.pointer.x += Math.sin(state.time * 0.8) * dt * 0.05;
+      state.pointer.y += Math.cos(state.time * 0.6) * dt * 0.05;
+    }
+    var near = t ? Math.hypot(WL.wrapDelta(t.x - state.scoop.x), WL.wrapDelta(t.y - state.scoop.y)) < 0.11 : false;
+    state.pointer.down = near && state.energy > 26;
+    // 胞子が近ければバーストで追い払う
+    for (var j = 0; j < state.spores.length; j++) {
+      var sp = state.spores[j];
+      if (sp.dead) continue;
+      var ds = Math.hypot(WL.wrapDelta(sp.x - state.scoop.x), WL.wrapDelta(sp.y - state.scoop.y));
+      if (ds < 0.105 && state.time > state.ai.burstAt && state.energy > 30) {
+        burst();
+        state.ai.burstAt = state.time + 1.6;
+      }
+    }
+  }
+
+  /* ---------- 描画 -------------------------------------------- */
+  function render(now) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+    var shakeX = 0, shakeY = 0;
+    if (state.shake > 0.2) {
+      shakeX = (Math.random() - 0.5) * state.shake;
+      shakeY = (Math.random() - 0.5) * state.shake;
+    }
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+
+    // 培養槽
+    roundRect(ctx, OX, OY, S, S, 26);
+    ctx.save();
+    ctx.clip();
+    var tg = ctx.createRadialGradient(OX + S * 0.5, OY + S * 0.46, S * 0.05, OX + S * 0.5, OY + S * 0.5, S * 0.72);
+    tg.addColorStop(0, 'rgba(20,34,58,0.55)');
+    tg.addColorStop(0.65, 'rgba(8,14,26,0.55)');
+    tg.addColorStop(1, 'rgba(4,7,14,0.75)');
+    ctx.fillStyle = tg;
+    ctx.fillRect(OX, OY, S, S);
+
+    drawParticles(now);
+    // パーティクル層（加算合成）
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(particleLayer, 0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+
+    if (state.mode !== 'title' && state.mode !== 'result') {
+      drawWormHalos(now);
+      drawSpores(now);
+      drawJar(now);
+      drawScoop(now);
+      drawFlyers(now);
+      drawSparks();
+      drawRings();
+      drawTexts();
+    }
+
+    ctx.restore();
+    ctx.restore();
+
+    drawFrameDecor();
+    if (state.mode !== 'title') drawOverlay(now);
+    if (state.recordHUD) drawRecHUD(now);
+    updateHUD(now);
+  }
+
+  /* ---------- 録画用のキャンバスHUD --------------------------- */
+  function rrect(x, y, w, h, r, fill, stroke) {
+    roundRect(ctx, x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+  }
+
+  function drawRecHUD(now) {
+    var JP = '"Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    // スコア
+    ctx.font = '700 10px ' + JP;
+    ctx.fillStyle = 'rgba(142,163,194,0.9)';
+    ctx.fillText('SCORE', 24, 26);
+    ctx.font = '800 30px ' + JP;
+    ctx.fillStyle = '#eaf2ff';
+    ctx.fillText(String(state.score), 24, 56);
+    if (state.chain >= 2) {
+      var cw = 96, cx = 24, cy = 66;
+      rrect(cx, cy, cw, 20, 10, 'rgba(255,166,92,0.95)');
+      ctx.font = '800 12px ' + JP;
+      ctx.fillStyle = '#20100c';
+      ctx.fillText('×' + state.combo.toFixed(1) + '  ' + state.chain + 'コンボ', cx + 9, cy + 14);
+    }
+    // タイマー
+    var barW = 360, barX = W / 2 - barW / 2, barY = 34;
+    ctx.font = '700 11px ' + JP;
+    ctx.fillStyle = '#6ef2c0';
+    ctx.fillText('第 ' + state.wave + ' 世代', barX, 26);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#eaf2ff';
+    ctx.font = '800 15px ' + JP;
+    ctx.fillText(Math.max(0, state.timeLeft).toFixed(1), barX + barW, 26);
+    ctx.textAlign = 'left';
+    rrect(barX, barY, barW, 6, 3, 'rgba(255,255,255,0.10)');
+    var frac = Math.max(0, state.timeLeft / GAME.duration);
+    var grd = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    grd.addColorStop(0, '#6ef2c0'); grd.addColorStop(0.6, '#7fc6ff'); grd.addColorStop(1, '#b79bff');
+    rrect(barX, barY, Math.max(3, barW * frac), 6, 3, grd);
+    // BEST
+    ctx.textAlign = 'right';
+    ctx.font = '700 10px ' + JP;
+    ctx.fillStyle = 'rgba(142,163,194,0.9)';
+    ctx.fillText('BEST', W - 24, 26);
+    ctx.font = '800 16px ' + JP;
+    ctx.fillStyle = '#eaf2ff';
+    ctx.fillText(String(state.best), W - 24, 46);
+    // 注文
+    var oy = H - 176;
+    rrect(20, oy, 190, 58, 14, 'rgba(11,17,31,0.78)', 'rgba(150,200,255,0.15)');
+    ctx.textAlign = 'left';
+    ctx.font = '700 9px ' + JP;
+    ctx.fillStyle = 'rgba(142,163,194,0.9)';
+    ctx.fillText('注文', 34, oy + 20);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText(state.order ? '+' + state.order.bonus : '', 196, oy + 20);
+    ctx.textAlign = 'left';
+    ctx.font = '700 13px ' + JP;
+    ctx.fillStyle = '#eaf2ff';
+    ctx.fillText(state.order ? state.order.icon + '  ' + state.order.label : '—', 34, oy + 42);
+    // エネルギー
+    var ey = H - 76;
+    ctx.font = '700 10px ' + JP;
+    ctx.fillStyle = 'rgba(142,163,194,0.9)';
+    ctx.fillText('吸引エネルギー', 24, ey - 8);
+    var ew = Math.min(300, W * 0.26);
+    rrect(24, ey, ew, 9, 5, 'rgba(255,255,255,0.08)');
+    var efrac = state.energy / 100;
+    rrect(24, ey, Math.max(3, ew * efrac), 9, 5, state.energy < 25 ? '#ff8fa3' : '#6ef2c0');
+    // 捕獲
+    ctx.textAlign = 'left';
+    ctx.font = '700 10px ' + JP;
+    ctx.fillStyle = 'rgba(142,163,194,0.9)';
+    ctx.fillText('捕獲', 24 + ew + 24, ey + 8);
+    ctx.font = '800 22px ' + JP;
+    ctx.fillStyle = '#eaf2ff';
+    ctx.fillText(String(state.captures), 24 + ew + 62, ey + 11);
+    // ヒント
+    ctx.textAlign = 'right';
+    ctx.font = '700 11px ' + JP;
+    ctx.fillStyle = 'rgba(142,163,194,0.9)';
+    ctx.fillText('長押しで吸引 / Space バースト', W - 24, H - 58);
+    ctx.fillStyle = 'rgba(142,163,194,0.6)';
+    ctx.fillText('群れをリングに収めると捕獲', W - 24, H - 40);
+    ctx.restore();
+    void now;
+  }
+
+  function drawParticles(now) {
+    var sim = state.sim;
+    if (!sim) return;
+    var ps = dpr * 0.62;
+    pctx.setTransform(ps, 0, 0, ps, 0, 0);
+    pctx.imageSmoothingEnabled = true;
+    pctx.globalCompositeOperation = 'destination-out';
+    pctx.fillStyle = 'rgba(0,0,0,0.11)';
+    pctx.fillRect(0, 0, W, H);
+    var base = Math.max(10, Math.min(14.5, S * 0.0185));
+    var half = base / 2;
+    var i, x, y, spr;
+    // 1) ふんわりしたグロー（加算）
+    pctx.globalCompositeOperation = 'lighter';
+    for (i = 0; i < sim.N; i++) {
+      if (!sim.alive[i]) continue;
+      spr = sprites[sim.type[i] % sprites.length];
+      x = OX + sim.px[i] * S;
+      y = OY + sim.py[i] * S;
+      if (x < OX - base || x > OX + S + base || y < OY - base || y > OY + S + base) continue;
+      pctx.drawImage(spr, x - half, y - half, base, base);
+    }
+    // 2) 色のはっきりしたコア（上書き）
+    pctx.globalCompositeOperation = 'source-over';
+    pctx.imageSmoothingEnabled = true;
+    var core = Math.max(2.8, base * 0.40);
+    var ch = core / 2;
+    for (i = 0; i < sim.N; i++) {
+      if (!sim.alive[i]) continue;
+      spr = coreSprites[sim.type[i] % coreSprites.length];
+      x = OX + sim.px[i] * S;
+      y = OY + sim.py[i] * S;
+      if (x < OX - base || x > OX + S + base || y < OY - base || y > OY + S + base) continue;
+      pctx.drawImage(spr, x - ch, y - ch, core, core);
+    }
+    void now;
+  }
+
+  function drawWormHalos(now) {
+    // 捕獲対象の群れの上に、小さなマーカーを出す
+    var c = state.target;
+    if (!c) return;
+    var col = COLORS[c.dominant % COLORS.length];
+    var x = OX + c.cx * S;
+    var y = OY + c.cy * S;
+    var bob = Math.sin(now * 5) * 3;
+    var my = y - Math.min(Math.max(c.ry, c.rx) * S * 0.8, S * 0.10) - 18 + bob;
+    ctx.save();
+    ctx.translate(x, my);
+    ctx.fillStyle = 'rgba(180,255,235,0.9)';
+    ctx.beginPath();
+    ctx.moveTo(0, 7);
+    ctx.lineTo(-6, -2);
+    ctx.lineTo(6, -2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // 進行度はスコップ側のリングで表示（ここでは何もしない）
+    var p = Math.max(0, Math.min(1, state.progress));
+    void p;
+    void col;
+  }
+
+  function drawSpores(now) {
+    for (var i = 0; i < state.spores.length; i++) {
+      var sp = state.spores[i];
+      if (sp.dead) continue;
+      var x = OX + sp.x * S, y = OY + sp.y * S;
+      var r = GAME.sporeR * S * (1 + 0.08 * Math.sin(now * 3 + sp.phase));
+      var col = SPORE_COLOR;
+      ctx.save();
+      ctx.translate(x, y);
+      // 外側のもや
+      var g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 2.1);
+      g.addColorStop(0, 'rgba(255,90,170,0.22)');
+      g.addColorStop(1, 'rgba(255,90,170,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(0, 0, r * 2.1, 0, Math.PI * 2); ctx.fill();
+      ctx.rotate(now * 0.9 + sp.phase);
+      ctx.beginPath();
+      var points = 14;
+      for (var k = 0; k < points; k++) {
+        var a = (k / points) * Math.PI * 2;
+        var rr = r * (k % 2 === 0 ? 0.82 + 0.25 * Math.sin(now * 3.2 + k) : 0.55);
+        if (k === 0) ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+        else ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      var g2 = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+      g2.addColorStop(0, 'rgba(255,220,240,0.95)');
+      g2.addColorStop(0.4, 'rgba(255,90,170,0.9)');
+      g2.addColorStop(1, 'rgba(160,20,90,0.85)');
+      ctx.fillStyle = g2;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,215,240,0.7)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawJar(now) {
+    var jx = 0.883, jy = 0.872;
+    var x = OX + jx * S, y = OY + jy * S;
+    var w = S * 0.118, h = S * 0.152;
+    var bodyY = -h * 0.30, bodyH = h * 0.78;
+    var pulse = 1 + state.jarPulse * 0.13;
+    var count = Math.min(state.captures, 10);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(pulse, pulse);
+    // 光
+    var glow = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 1.8);
+    glow.addColorStop(0, 'rgba(110,242,192,0.16)');
+    glow.addColorStop(1, 'rgba(110,242,192,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(0, 0, w * 1.8, 0, Math.PI * 2); ctx.fill();
+
+    // ガラス（少し暗くして背景と分離）
+    roundRect(ctx, -w / 2, bodyY, w, bodyH, 15);
+    ctx.fillStyle = 'rgba(14,24,40,0.62)';
+    ctx.fill();
+    // 中身
+    var level = Math.min(1, 0.22 + count / 10 * 0.68);
+    ctx.save();
+    roundRect(ctx, -w / 2 + 2.5, bodyY + 2.5, w - 5, bodyH - 5, 12);
+    ctx.clip();
+    var fillH = (bodyH - 5) * level;
+    var lg = ctx.createLinearGradient(0, bodyY + bodyH, 0, bodyY);
+    lg.addColorStop(0, 'rgba(110,242,192,0.62)');
+    lg.addColorStop(0.55, 'rgba(110,242,192,0.26)');
+    lg.addColorStop(1, 'rgba(127,198,255,0.16)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(-w / 2, bodyY + bodyH - fillH, w, fillH);
+    // 液面のゆらぎ
+    ctx.beginPath();
+    var topY = bodyY + bodyH - fillH;
+    ctx.moveTo(-w / 2, bodyY + bodyH);
+    ctx.lineTo(-w / 2, topY);
+    for (var xx = -w / 2; xx <= w / 2; xx += 4) {
+      ctx.lineTo(xx, topY + Math.sin(xx * 0.25 + now * 2.2) * 1.6);
+    }
+    ctx.lineTo(w / 2, bodyY + bodyH);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(160,255,225,0.20)';
+    ctx.fill();
+    // 採集した粒
+    for (var i = 0; i < count; i++) {
+      var col = COLORS[(i * 2 + 1) % COLORS.length];
+      var bx = -w * 0.30 + (i % 4) * (w * 0.20) + Math.sin(now * 1.4 + i * 1.7) * 2.5;
+      var by = bodyY + bodyH - 8 - Math.floor(i / 4) * (bodyH * 0.16) + Math.sin(now * 1.9 + i) * 2;
+      ctx.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.95)';
+      ctx.beginPath(); ctx.arc(bx, by, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath(); ctx.arc(bx - 0.6, by - 0.8, 0.9, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    // 枠
+    roundRect(ctx, -w / 2, bodyY, w, bodyH, 15);
+    ctx.strokeStyle = 'rgba(200,235,255,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // 首とコルク
+    roundRect(ctx, -w * 0.22, bodyY - h * 0.10, w * 0.44, h * 0.10, 3);
+    ctx.fillStyle = 'rgba(170,215,255,0.14)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(200,235,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    roundRect(ctx, -w * 0.115, bodyY - h * 0.155, w * 0.23, h * 0.075, 4);
+    ctx.fillStyle = 'rgba(255,196,130,0.55)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,225,180,0.8)';
+    ctx.stroke();
+    // ガラスのハイライト
+    ctx.save();
+    roundRect(ctx, -w / 2, bodyY, w, bodyH, 15);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.28, bodyY);
+    ctx.lineTo(-w * 0.10, bodyY);
+    ctx.lineTo(-w * 0.32, bodyY + bodyH);
+    ctx.lineTo(-w * 0.46, bodyY + bodyH);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // ラベル（上部にまとめる）
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 ' + Math.round(S * 0.030) + 'px "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+    ctx.fillStyle = 'rgba(237,255,250,0.95)';
+    ctx.fillText(String(state.captures), 0, bodyY + bodyH * 0.20);
+    ctx.font = '700 ' + Math.round(S * 0.0105) + 'px sans-serif';
+    ctx.fillStyle = 'rgba(190,235,225,0.55)';
+    ctx.fillText('SPECIMEN', 0, bodyY + bodyH * 0.20 + S * 0.026);
+    ctx.restore();
+  }
+
+  function drawScoop(now) {
+    var r = GAME.scoopR * S;
+    var x = OX + state.scoop.x * S;
+    var y = OY + state.scoop.y * S;
+    var p = Math.max(0, Math.min(1, state.progress));
+    ctx.save();
+    ctx.translate(x, y);
+
+    if (state.magnet) {
+      var glow = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, GAME.attractR * S);
+      glow.addColorStop(0, 'rgba(140,250,220,0.10)');
+      glow.addColorStop(1, 'rgba(140,250,220,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(0, 0, GAME.attractR * S, 0, Math.PI * 2); ctx.fill();
+    }
+    var inner = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    inner.addColorStop(0, 'rgba(170,255,230,0.10)');
+    inner.addColorStop(0.8, 'rgba(110,242,192,0.05)');
+    inner.addColorStop(1, 'rgba(110,242,192,0)');
+    ctx.fillStyle = inner;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+
+    ctx.globalAlpha = state.grace > 0 ? 0.35 : 1;
+    ctx.strokeStyle = 'rgba(180,255,235,0.55)';
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([9, 9]);
+    ctx.lineDashOffset = -now * 26;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (p > 0.01) {
+      ctx.strokeStyle = 'rgba(160,255,225,0.95)';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, 0, r - 3, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath(); ctx.arc(0, 0, r - 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p); ctx.stroke();
+    }
+    // 中央
+    ctx.fillStyle = 'rgba(235,255,248,0.9)';
+    ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // 発生中の案内
+    if (state.grace > 0) {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '700 13px "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+      ctx.fillStyle = 'rgba(190,230,255,0.85)';
+      ctx.fillText('第' + state.wave + '世代 発生中…', OX + S / 2, OY + S * 0.08);
+      ctx.restore();
+    }
+  }
+
+  function drawFlyers() {
+    if (!state.flyers.length) return;
+    var jx = OX + 0.855 * S, jy = OY + 0.795 * S - S * 0.152 * 0.30;
+    for (var i = 0; i < state.flyers.length; i++) {
+      var f = state.flyers[i];
+      if (f.t < 0) continue;
+      var e = f.t / f.dur;
+      var ease = e < 1 ? 1 - Math.pow(1 - e, 3) : 1;
+      var sx = OX + f.x * S, sy = OY + f.y * S;
+      // ふわっと弧を描いて瓶へ
+      var mx = sx + Math.sin(e * Math.PI) * (S * 0.06) * Math.sin(i * 1.7);
+      var my = sy - Math.sin(e * Math.PI) * (S * 0.10);
+      var x = mx + (jx - mx) * ease;
+      var y = my + (jy - my) * ease;
+      var spr = sprites[0];
+      var col = f.color;
+      var size = Math.max(5, S * 0.014) * (1 - ease * 0.4) * f.r;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',0.9)';
+      ctx.beginPath(); ctx.arc(x, y, size * 0.45, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      void spr;
+    }
+  }
+
+  function drawSparks() {
+    if (!state.sparks.length) return;
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < state.sparks.length; i++) {
+      var p = state.sparks[i];
+      var a = 1 - p.t / p.dur;
+      var x = OX + p.x * S, y = OY + p.y * S;
+      ctx.fillStyle = 'rgba(' + p.color[0] + ',' + p.color[1] + ',' + p.color[2] + ',' + (0.8 * a).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(x, y, p.r * (0.6 + a), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawRings() {
+    for (var i = 0; i < state.rings.length; i++) {
+      var r = state.rings[i];
+      var e = r.t / r.dur;
+      var ease = 1 - Math.pow(1 - e, 2);
+      var rad = (r.r0 + (r.r1 - r.r0) * ease) * S;
+      ctx.strokeStyle = r.color;
+      ctx.globalAlpha = Math.max(0, 1 - e) * 0.9;
+      ctx.lineWidth = Math.max(1, 3 * (1 - e));
+      ctx.beginPath();
+      ctx.arc(OX + r.x * S, OY + r.y * S, rad, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawTexts() {
+    for (var i = 0; i < state.texts.length; i++) {
+      var t = state.texts[i];
+      var e = t.t / t.dur;
+      if (e > 1) continue;
+      var a = e < 0.15 ? e / 0.15 : (1 - Math.pow((e - 0.15) / 0.85, 2));
+      var x = OX + t.x * S;
+      var y = OY + t.y * S - e * 34;
+      ctx.font = '800 ' + t.size + 'px "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(3,7,14,0.7)';
+      ctx.strokeText(t.text, x, y);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, x, y);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawFrameDecor() {
+    // 培養槽の枠
+    ctx.save();
+    roundRect(ctx, OX, OY, S, S, 26);
+    ctx.strokeStyle = 'rgba(150,200,255,0.16)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawOverlay(now) {
+    // ビネット
+    var g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    if (state.flash > 0.01) {
+      ctx.fillStyle = 'rgba(160,255,230,' + (state.flash * 0.25).toFixed(3) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+    // エネルギー切れの赤み
+    if (state.mode === 'play' && state.energy < 18) {
+      var pulse = 0.10 + 0.05 * Math.sin(now * 6);
+      ctx.fillStyle = 'rgba(255,90,130,' + pulse.toFixed(3) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  function updateHUD(now) {
+    if (state.mode !== 'play') return;
+    el.score.textContent = state.score;
+    if (state.chain >= 2) {
+      el.combo.classList.remove('hidden');
+      el.combo.textContent = '×' + state.combo.toFixed(1) + '  ' + state.chain + 'コンボ';
+    } else {
+      el.combo.classList.add('hidden');
+    }
+    var frac = Math.max(0, state.timeLeft / GAME.duration);
+    el.timeFill.style.width = (frac * 100).toFixed(2) + '%';
+    el.timeText.textContent = Math.max(0, state.timeLeft).toFixed(1);
+    el.waveLabel.textContent = '第 ' + state.wave + ' 世代';
+    el.energyFill.style.width = state.energy.toFixed(1) + '%';
+    el.energyWrap.classList.toggle('low', state.energy < 25);
+    el.captureCount.textContent = state.captures;
+    if (state.hintTimer > 14) el.hintSub.textContent = '群れをリングに収めてね';
+    else el.hintSub.textContent = '群れをリングに収めると捕獲';
+    void now;
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    var rr = Math.min(r, w / 2, h / 2);
+    c.beginPath();
+    c.moveTo(x + rr, y);
+    c.arcTo(x + w, y, x + w, y + h, rr);
+    c.arcTo(x + w, y + h, x, y + h, rr);
+    c.arcTo(x, y + h, x, y, rr);
+    c.arcTo(x, y, x + w, y, rr);
+    c.closePath();
+  }
+
+  /* ---------- メインループ ------------------------------------ */
+  function loop(now) {
+    var dt = Math.min(0.05, (now - state.last) / 1000);
+    state.last = now;
+    if (state.mode === 'play' && !state.paused) {
+      state.acc += dt;
+      var steps = 0;
+      while (state.acc >= FIXED && steps < 3) {
+        updatePlay(FIXED);
+        state.acc -= FIXED;
+        steps++;
+        if (state.mode !== 'play') break;
+      }
+      if (steps >= 3) state.acc = 0;
+    } else if (state.mode === 'title') {
+      state.acc += dt;
+      var n = 0;
+      while (state.acc >= FIXED && n < 3) {
+        updateAmbient(FIXED);
+        state.acc -= FIXED;
+        n++;
+      }
+      if (n >= 3) state.acc = 0;
+    } else {
+      updateEffects(dt);
+    }
+    render(now / 1000);
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- タイトル画面 ------------------------------------ */
+  function buildPresetCards() {
+    var host = $('preset-list');
+    host.innerHTML = '';
+    var ids = ['himo', 'random', 'chase', 'whirl'];
+    ids.forEach(function (id) {
+      var def = PRESETS[id];
+      var b = document.createElement('button');
+      b.className = 'preset' + (id === state.presetId ? ' on' : '');
+      b.dataset.id = id;
+      b.innerHTML = '<span class="emoji">' + def.emoji + '</span><span><span class="name">' +
+        def.label + '</span><span class="desc">' + def.desc + '</span></span>';
+      b.addEventListener('click', function () {
+        state.presetId = id;
+        setTitleWorld(id);
+        syncPresetCards();
+        Sound.init();
+        Sound.low();
+      });
+      host.appendChild(b);
+    });
+    syncPresetCards();
+  }
+
+  function syncPresetCards() {
+    var cards = document.querySelectorAll('.preset');
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].classList.toggle('on', cards[i].dataset.id === state.presetId);
+    }
+  }
+
+  /* ---------- 起動 -------------------------------------------- */
+  /* ---------- スクショ / 録画モード（検証・GIF用） ----------- */
+  function shotMode(params) {
+    var kind = params.get('shot') || 'play';
+    var preset = params.get('preset') || 'himo';
+    state.presetId = preset;
+    if (kind === 'title') {
+      setTitleWorld(preset);
+      goTitle();
+      for (var i = 0; i < 420; i++) updateAmbient(FIXED);
+      render(4.2);
+    } else if (kind === 'result') {
+      startGame(parseInt(params.get('seed') || '7', 10));
+      state.time = 89;
+      for (var s = 0; s < 300; s++) { state.sim.applyFlow(GAME.flowAmp, state.sim.time, state.wavePhase); state.sim.step(); }
+      state.score = 1520; state.captures = 12; state.biggest = 34; state.maxChain = 2.4; state.ordersDone = 5;
+      state.clusters = state.sim.clusters({ minSize: 8, k: 2, maxR: state.sim.rmax * 0.7 });
+      endGame();
+      render(6);
+    } else {
+      startGame(parseInt(params.get('seed') || '7', 10));
+      state.demo = false;
+      for (var k = 0; k < 380; k++) {
+        state.sim.applyFlow(GAME.flowAmp, state.sim.time, state.wavePhase);
+        state.sim.step();
+      }
+      state.clusters = state.sim.clusters({ minSize: 8, k: 2, maxR: state.sim.rmax * 0.7 });
+      var worm = null, bestD = 1e9;
+      for (var ci = 0; ci < state.clusters.length; ci++) {
+        var c = state.clusters[ci];
+        if (!c.isWorm || c.size < 14) continue;
+        var d = Math.hypot(c.cx - 0.5, c.cy - 0.52);
+        if (d < bestD) { bestD = d; worm = c; }
+      }
+      if (worm) {
+        state.scoop.x = worm.cx; state.scoop.y = worm.cy;
+        state.pointer.x = worm.cx; state.pointer.y = worm.cy;
+        state.target = worm; state.progress = 0.62; state.magnet = true;
+      }
+      state.score = 780; state.captures = 7; state.biggest = 31;
+      state.chain = 3; state.combo = 1.4; state.timeLeft = 47.3;
+      state.wave = 3; state.energy = 68; state.jarPulse = 0.6; state.grace = 0;
+      state.order = WL.pickOrder(state.rng, 40, null);
+      updateOrderCard();
+      el.toast.classList.remove('show');
+      updateHUD(6);
+      render(6.2);
+      if (params.get('debug')) {
+        var dbg = document.createElement('pre');
+        dbg.id = 'dbg';
+        try {
+          var dimg = pctx.getImageData(0, 0, particleLayer.width, particleLayer.height).data;
+          var lit = 0;
+          for (var q = 3; q < dimg.length; q += 4) if (dimg[q] > 0) lit++;
+          dbg.textContent = JSON.stringify({
+            W: W, H: H, S: S, OX: OX, OY: OY, N: state.sim.N,
+            layer: [particleLayer.width, particleLayer.height],
+            lit: lit, alive: state.sim.countAlive(), clusters: state.clusters.length,
+          });
+        } catch (e) { dbg.textContent = 'ERR ' + e.message; }
+        document.body.appendChild(dbg);
+      }
+    }
+    document.title = 'SHOT_READY';
+  }
+
+  function simulateMode(params) {
+    state.demo = true; state.demoAI = true;
+    startGame(parseInt(params.get('seed') || '7', 10));
+    var seconds = Math.max(5, Math.min(120, parseFloat(params.get('seconds') || '90')));
+    var total = Math.round(seconds * 60);
+    var gains = [], orderHits = 0;
+    for (var f = 0; f < total; f++) {
+      var s0 = state.score, c0 = state.captures, o0 = state.ordersDone;
+      updatePlay(FIXED);
+      if (state.captures > c0) gains.push(state.score - s0);
+      if (state.ordersDone > o0) orderHits++;
+      if (state.mode !== 'play') break;
+    }
+    var sum = gains.reduce(function (a, b) { return a + b; }, 0);
+    var stats = {
+      score: state.score, captures: state.captures, biggest: state.biggest,
+      orders: state.ordersDone, avgGain: gains.length ? Math.round(sum / gains.length) : 0,
+      maxGain: gains.length ? Math.max.apply(null, gains) : 0,
+      minGain: gains.length ? Math.min.apply(null, gains) : 0,
+      maxCombo: state.maxChain, time: +state.time.toFixed(1), wave: state.wave,
+      gains: gains.slice(0, 200),
+    };
+    var holder = document.createElement('div');
+    holder.id = 'simstats';
+    holder.textContent = JSON.stringify(stats);
+    document.body.appendChild(holder);
+    document.title = 'SIM_DONE';
+  }
+
+  function recordMode(params) {
+    state.recordHUD = true;
+    state.demo = true; state.demoAI = true;
+    startGame(parseInt(params.get('seed') || '7', 10));
+    var frames = Math.max(2, Math.min(400, parseInt(params.get('frames') || '90', 10)));
+    var perFrame = parseInt(params.get('steps') || '2', 10);
+    var warm = Math.max(0, Math.min(1200, parseInt(params.get('warm') || '0', 10)));
+    for (var w = 0; w < warm; w++) updatePlay(FIXED);
+    var out = [];
+    var t0 = performance.now();
+    for (var f = 0; f < frames; f++) {
+      for (var k = 0; k < perFrame; k++) updatePlay(FIXED);
+      render(f / 30);
+      out.push(canvas.toDataURL('image/jpeg', 0.82));
+    }
+    var holder = document.createElement('div');
+    holder.id = 'recout';
+    holder.style.display = 'none';
+    holder.textContent = JSON.stringify(out);
+    document.body.appendChild(holder);
+    var stats = document.createElement('div');
+    stats.id = 'recstats';
+    stats.textContent = JSON.stringify({
+      score: state.score, captures: state.captures, biggest: state.biggest,
+      time: +state.time.toFixed(2), wave: state.wave, orders: state.ordersDone,
+      frames: frames, ms: Math.round(performance.now() - t0),
+    });
+    document.body.appendChild(stats);
+    document.title = 'RECORD_DONE';
+  }
+
+  function boot() {
+    window.addEventListener('error', function (e) {
+      var d = document.createElement('pre');
+      d.id = 'jserr';
+      d.textContent = 'JSERR ' + e.message + ' @ ' + e.filename + ':' + e.lineno;
+      document.body.appendChild(d);
+    });
+    var params = new URLSearchParams(location.search);
+    state.demo = params.get('demo') === '1';
+    state.demoAI = params.get('ai') !== '0';
+    if (params.get('preset') && PRESETS[params.get('preset')]) state.presetId = params.get('preset');
+    try {
+      var mute = localStorage.getItem(LS_MUTE);
+      if (mute === '0') Sound.on = false;
+    } catch (e) { }
+    $('mute-btn').textContent = Sound.on ? '🔊' : '🔇';
+    loadBest();
+    resize();
+    bindInput();
+    buildPresetCards();
+
+    window.__game = {
+      state: state,
+      startGame: startGame,
+      goTitle: goTitle,
+      burst: burst,
+      GAME: GAME,
+      sim: function () { return state.sim; },
+    };
+    if (params.get('shot')) {
+      shotMode(params);
+      return;
+    }
+    // 調整用: URL パラメータで GAME の数値を上書き
+    ['drain', 'regen', 'captureEnergy', 'captureTime', 'captureFrac', 'magnet', 'attractR', 'scoopR', 'waveLen', 'duration'].forEach(function (k) {
+      if (params.get(k) != null) GAME[k] = parseFloat(params.get(k));
+    });
+    if (params.get('simulate') === '1') {
+      simulateMode(params);
+      return;
+    }
+    if (params.get('record') === '1') {
+      recordMode(params);
+      return;
+    }
+    if (state.demo) {
+      var seed = parseInt(params.get('seed') || '7', 10);
+      startGame(seed);
+    } else {
+      setTitleWorld(state.presetId);
+      goTitle();
+    }
+    state.last = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  window.addEventListener('resize', function () {
+    resize();
+    if (state.mode === 'title') {
+      // タイトルの背景は作り直さない（粒子数はそのまま）
+    }
+  });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,2155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070f">
+<title>Particle Derby — 生態系の生き残り予想</title>
+<style>
+  :root {
+    --bg: #04060e;
+    --panel: rgba(10, 16, 29, .82);
+    --line: rgba(150, 200, 255, .15);
+    --mint: #6ef2c0;
+    --rose: #ff8fa3;
+    --gold: #ffd166;
+    --text: #eaf2ff;
+    --dim: #8ea3c2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+  body {
+    color: var(--text);
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI",
+                 "Noto Sans JP", "Meiryo", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app { position: fixed; inset: 0; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ---------- 上部HUD ---------- */
+  .hud {
+    position: absolute; top: 0; left: 0; right: 0; height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 18px; pointer-events: none;
+  }
+  .hud > * { pointer-events: auto; }
+  .brand { font-size: 10px; letter-spacing: .3em; color: var(--dim); }
+  .brand b { display: block; font-size: 13px; letter-spacing: .12em; color: var(--text); }
+  .race-ind { font-size: 10px; letter-spacing: .2em; color: var(--dim); }
+  .race-ind b { color: var(--gold); font-size: 15px; letter-spacing: 0; }
+  .hud-center { flex: 1; max-width: 380px; margin: 0 14px; text-align: center; }
+  .hud-line { display: flex; align-items: baseline; justify-content: center; gap: 10px; }
+  #phase-label { font-size: 9px; letter-spacing: .24em; color: var(--mint); }
+  #phase-timer { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  #phase-bar { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #6ef2c0, #7fc6ff); }
+  .phase-bar2 { height: 3px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; margin-top: 3px; }
+  #phase-sub { font-size: 10px; color: var(--dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chips { font-size: 10px; letter-spacing: .2em; color: var(--dim); text-align: right; }
+  .chips b { display: block; font-size: 24px; color: var(--gold); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+
+  /* ---------- パネル ---------- */
+  .panel {
+    position: absolute; top: 64px; right: 0; bottom: 0; width: 370px;
+    background: var(--panel); border-left: 1px solid var(--line);
+    backdrop-filter: blur(16px);
+    padding: 14px 16px 16px;
+    display: flex; flex-direction: column; gap: 8px; overflow-y: auto;
+  }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .panel-title { font-size: 11px; letter-spacing: .18em; color: var(--dim); }
+  .panel-title b { color: var(--text); letter-spacing: .04em; font-size: 13px; }
+  .panel-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chip-btn {
+    border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text);
+    border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 11px; cursor: pointer;
+  }
+  .chip-btn.on { border-color: var(--gold); color: var(--gold); background: rgba(255,209,102,.1); }
+  .chip-btn:hover { border-color: rgba(255,255,255,.3); }
+  .primary-btn {
+    border: 0; border-radius: 999px; padding: 9px 22px; cursor: pointer;
+    font: inherit; font-size: 13px; font-weight: 800; color: #1a1206;
+    background: linear-gradient(135deg, #ffe6a1, #ffd166 55%, #ffb26b);
+    box-shadow: 0 8px 24px rgba(255, 209, 102, .25);
+  }
+  .primary-btn:hover { transform: translateY(-1px); }
+  .ghost-btn {
+    border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text);
+    border-radius: 999px; padding: 9px 20px; cursor: pointer; font: inherit; font-size: 12px;
+  }
+  .cand-row, .stand-row {
+    display: flex; flex-direction: column; gap: 6px;
+    overflow-y: auto; overflow-x: hidden; padding-bottom: 2px; scrollbar-width: thin;
+  }
+  .cand {
+    flex: none; width: 100%; max-width: none; text-align: left; cursor: pointer;
+    border-radius: 14px; padding: 9px 10px; border: 1px solid var(--line);
+    background: rgba(255, 255, 255, .035); color: var(--text); font: inherit;
+    display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: start;
+    transition: border-color .15s, background .15s, transform .1s;
+  }
+  .cand:hover { background: rgba(255,255,255,.07); transform: translateY(-1px); }
+  .cand.bet { border-color: var(--gold); background: rgba(255,209,102,.08); }
+  .cand.dead { opacity: .4; }
+  .cand .num {
+    width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
+    font-weight: 900; font-size: 14px; color: #0b101a;
+    background: var(--c, #ffd166);
+  }
+  .cand .name { font-size: 12px; font-weight: 800; }
+  .cand .meta { font-size: 10px; color: var(--dim); margin-top: 2px; line-height: 1.4; }
+  .cand .odds { color: var(--gold); font-weight: 800; }
+  .cand .stake { font-size: 10px; color: var(--gold); margin-top: 3px; min-height: 13px; }
+  .stand {
+    flex: none; width: 100%; max-width: none; border-radius: 13px; padding: 8px 10px;
+    border: 1px solid var(--line); background: rgba(255,255,255,.03);
+    display: grid; grid-template-columns: 22px 26px 1fr; gap: 7px; align-items: center;
+    font-size: 11px;
+  }
+  .stand .rank { color: var(--dim); font-weight: 800; font-size: 12px; }
+  .stand .num {
+    width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center;
+    font-weight: 900; font-size: 12px; color: #0b101a; background: var(--c, #ffd166);
+  }
+  .stand .sz { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stand .note { font-size: 9px; color: var(--dim); }
+  .stand.leader { border-color: rgba(255,209,102,.45); background: rgba(255,209,102,.06); }
+  .stand.out { opacity: .45; }
+  .stand.out .sz { text-decoration: line-through; }
+  .empty-note { font-size: 11px; color: var(--dim); padding: 12px 2px; }
+
+  /* ---------- トースト ---------- */
+  .toast {
+    position: absolute; left: 50%; top: 132px; transform: translateX(-50%);
+    padding: 7px 16px; border-radius: 999px;
+    background: rgba(8, 14, 26, .85); border: 1px solid var(--line);
+    font-size: 12px; font-weight: 700; color: var(--mint);
+    opacity: 0; pointer-events: none; white-space: nowrap;
+    backdrop-filter: blur(8px); z-index: 3;
+  }
+  .toast.show { animation: toastIn 2.2s ease both; }
+  @keyframes toastIn {
+    0% { opacity: 0; transform: translate(-50%, 8px); }
+    12% { opacity: 1; transform: translate(-50%, 0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -6px); }
+  }
+
+  /* ---------- オーバーレイ ---------- */
+  .screen {
+    position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+    padding: 22px; overflow-y: auto;
+    background:
+      radial-gradient(90% 70% at 50% 0%, rgba(18, 36, 64, .34), rgba(3, 6, 13, .7) 62%),
+      rgba(3, 6, 13, .34);
+    backdrop-filter: blur(2px);
+  }
+  .screen.hidden { display: none; }
+  .inner { width: min(680px, 100%); text-align: center; animation: rise .5s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .kicker { font-size: 10px; letter-spacing: .34em; color: var(--gold); text-transform: uppercase; margin-bottom: 10px; }
+  h1 {
+    margin: 0; font-size: clamp(38px, 7.4vw, 72px); line-height: 1.02; letter-spacing: .02em;
+    background: linear-gradient(100deg, #fff0b8 4%, #ffd166 38%, #ff9f7a 72%, #ff8fa3 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 8px 34px rgba(255, 190, 110, .25));
+  }
+  .sub { margin: 12px 0 16px; font-size: 13px; color: var(--dim); line-height: 1.7; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 6px; }
+  .step { text-align: left; padding: 10px 12px; border-radius: 13px; background: rgba(255,255,255,.035); border: 1px solid var(--line); }
+  .step b { display: block; font-size: 11px; color: var(--gold); letter-spacing: .1em; margin-bottom: 4px; }
+  .step span { font-size: 11px; color: var(--dim); line-height: 1.5; }
+  .start-btn {
+    margin-top: 18px; display: inline-flex; align-items: center; justify-content: center;
+    padding: 14px 48px; border: 0; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 17px; font-weight: 800; letter-spacing: .04em; color: #1a1206;
+    background: linear-gradient(135deg, #ffe6a1, #ffd166 52%, #ffb26b);
+    box-shadow: 0 10px 34px rgba(255, 209, 102, .3), inset 0 1px 0 rgba(255,255,255,.55);
+  }
+  .start-btn:hover { transform: translateY(-1px); }
+  .credit { margin-top: 14px; font-size: 10px; color: rgba(142,163,194,.7); line-height: 1.7; }
+  .credit a { color: rgba(200,220,255,.9); text-decoration: none; border-bottom: 1px dotted rgba(142,163,194,.4); }
+
+  /* リザルト */
+  .result-card {
+    width: min(560px, 100%); padding: 24px 26px 22px; border-radius: 28px; text-align: center;
+    background: linear-gradient(170deg, rgba(20,32,52,.92), rgba(5,9,18,.94));
+    border: 1px solid rgba(150,200,255,.22);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.07);
+    backdrop-filter: blur(20px); animation: rise .45s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .winner-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 4px 0 6px; }
+  .winner-badge {
+    width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center;
+    font-size: 24px; font-weight: 900; color: #0b101a;
+  }
+  .winner-name { font-size: clamp(24px, 5vw, 36px); font-weight: 900; letter-spacing: .03em; }
+  .result-sub { font-size: 11px; color: var(--dim); margin-bottom: 14px; }
+  .payout { font-size: 28px; font-weight: 800; color: var(--gold); margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+  .payout small { font-size: 12px; color: var(--dim); margin-left: 4px; }
+  .result-list { margin: 14px 0 18px; display: grid; gap: 5px; }
+  .result-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; border-radius: 10px; background: rgba(255,255,255,.035); font-size: 11px; color: var(--dim); }
+  .result-row b { color: var(--text); font-size: 13px; }
+  .result-row .tag { display: inline-flex; align-items: center; gap: 6px; }
+  .result-row .dot { width: 9px; height: 9px; border-radius: 3px; }
+  .buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .buttons .primary-btn { margin: 0; }
+  .final-rank {
+    font-size: clamp(64px, 13vw, 112px); line-height: .95; font-weight: 900;
+    background: linear-gradient(160deg, #fff4b8, #ffd166 40%, #ff8fa3 75%, #b79bff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  .panel-toggle { display: none; }
+  @media (max-width: 900px) {
+    .panel {
+      top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 62vh;
+      border-left: 0; border-top: 1px solid var(--line); border-radius: 18px 18px 0 0;
+      padding: 10px 12px 12px;
+    }
+    .cand-row, .stand-row {
+      flex-direction: row; overflow-x: auto; overflow-y: hidden;
+    }
+    .cand { flex: 0 0 168px; width: auto; }
+    .stand { flex: 0 0 158px; width: auto; }
+    .panel-toggle { display: grid; place-items: center; }
+    body.panel-closed .panel { display: none; }
+    body.panel-closed .panel-toggle { display: grid; }
+    .hud { height: 56px; padding: 6px 10px; }
+    .hud-center { display: none; }
+    .brand { font-size: 9px; }
+    .brand b { font-size: 11px; }
+    .chips b { font-size: 19px; }
+    .panel { min-height: 0; }
+    .steps { grid-template-columns: 1fr; }
+    .credit { display: none; }
+    .cand .meta { font-size: 9px; }
+  }
+  @media (max-width: 700px) {
+    .hud { height: 56px; padding: 6px 10px; }
+    .brand { font-size: 9px; }
+    .brand b { font-size: 11px; }
+    .chips b { font-size: 19px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <div class="hud">
+    <div class="brand">PARTICLE DERBY<b>生き残り予想</b></div>
+    <div class="race-ind">RACE <b id="race-num">1</b> / 3</div>
+    <div class="hud-center">
+      <div class="hud-line"><span id="phase-label">培養中</span><span id="phase-timer">5.0</span></div>
+      <div class="phase-bar2"><i id="phase-bar"></i></div>
+      <div id="phase-sub">群れが生まれるのを待っています</div>
+    </div>
+    <div class="chips">CHIPS<b id="chips">100</b></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <button class="panel-toggle" id="panel-toggle" title="賭けパネル">🎫</button>
+
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <div class="panel-title" id="panel-title"><b>出馬表</b> — どの群れが生き残る？</div>
+      <div class="panel-tools" id="panel-tools"></div>
+    </div>
+    <div class="cand-row" id="cand-row"></div>
+    <div class="stand-row" id="stand-row" style="display:none"></div>
+    <div class="empty-note" id="panel-note">培養中… 群れができてきたら出馬表が出ます。</div>
+  </div>
+
+  <div class="screen" id="intro-screen">
+    <div class="inner">
+      <div class="kicker">Particle Life × Prediction</div>
+      <h1>Particle Derby</h1>
+      <p class="sub">ランダムに生まれた生態系のなかから、<br>「最後にいちばん大きくなる群れ」を予想するレース。</p>
+      <div class="steps">
+        <div class="step"><b>① 培養</b><span>ランダムな行列から、粒の群れが自然に生まれます。</span></div>
+        <div class="step"><b>② 出馬表</b><span>5つの群れに番号がつきます。オッズを見てチップを賭けよう。</span></div>
+        <div class="step"><b>③ レース</b><span>雷撃・大爆発・突然変異。予想が当たれば配当。</span></div>
+      </div>
+      <p class="sub" style="font-size:11px; margin:10px 0 0;">
+        操作は「賭ける」だけ。群れを動かすことはできません。<br>
+        雷は「そのときのトップ」に落ちるので、オッズ通りにはいかないことも。
+      </p>
+      <button class="start-btn" id="start-btn">レースをはじめる</button>
+      <div class="credit">
+        <a href="index.html">← ほかのモードへ</a> ／
+        <a href="https://cerevisiae-fii.github.io/particle-life/" target="_blank" rel="noopener">inspired by Particle Life</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="result-screen">
+    <div class="result-card" id="result-card"></div>
+  </div>
+</div>
+
+<script>
+/* ==== src/sim.js ==== */
+/* ============================================================
+ * Worm Lab — Particle Life 物理コア（DOM 非依存・決定論的）
+ *  元ネタ: https://cerevisiae-fii.github.io/particle-life/ の
+ *  吸引行列モデルを、ブラウザ/Node 両方で使えるように切り出したもの。
+ *  - 座標は [0,1) のトーラス（端がつながる）
+ *  - 粒子は種類 type ごとに連続ブロックで生成（描画を軽くするため）
+ *  - クラスタ解析（ヒモ検出）もここに置き、Node テストで検証できる
+ * ============================================================ */
+(function (root, factory) {
+  var api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.WL = Object.assign(root.WL || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  var MK = 9; // matrix の stride（種類数の上限）
+  var SIM_DEFAULTS = Object.freeze({
+    N: 3400, K: 6, rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3, dt: 0.02,
+  });
+
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function cyc(i, j, K) { return ((j - i) % K + K) % K; }
+
+  /* ---------- 行列プリセット ---------------------------------
+   * f(i,j) = 種類 i が 種類 j から受ける力（+ 引き合う / - 反発）
+   * 添字は「i の種類番号, j の種類番号, 種類数, 乱数」
+   */
+  var MATRIX_FNS = {
+    himo: function (i, j, K) {
+      if (i === j) return 0;
+      var c = cyc(i, j, K);
+      return (c === 1 || c === K - 1) ? 0.8 : -0.3;
+    },
+    whirl: function (i, j, K) {
+      return Math.sin(((j - i + K) % K) * 1.2 + 0.5) * 0.8;
+    },
+    // 元サイトの既定「循環追跡」: 1つ先を追い、1つ前から逃げる
+    chase: function (i, j, K) {
+      if (i === j) return 0.3;
+      var c = cyc(i, j, K);
+      return c === 1 ? 0.7 : (c === K - 1 ? -0.5 : 0);
+    },
+    predator: function (i, j, K) {
+      if (i === j) return 0;
+      var c = cyc(i, j, K);
+      return c === 1 ? 1 : (c === K - 1 ? -1 : 0);
+    },
+    // 完全ランダム：何が出るか分からないワクワク枠
+    wild: function (i, j, K, rng) {
+      if (i === j) return 0.35;
+      return rng() * 2 - 1;
+    },
+    // ひも状を少しずらす：ヒモっぽさを残しつつ毎回変わる
+    jitter: function (i, j, K, rng) {
+      if (i === j) return 0.1;
+      var c = cyc(i, j, K);
+      var base = (c === 1 || c === K - 1) ? 0.8 : -0.3;
+      return base + (rng() * 0.9 - 0.45);
+    },
+  };
+
+  var PRESETS = {
+    himo: {
+      id: 'himo', label: 'ひも状', emoji: '〜',
+      desc: '色が数珠つなぎになった、ウネウネのヒモができる',
+      K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'himo',
+    },
+    random: {
+      id: 'random', label: 'ランダム', emoji: '🎲',
+      desc: '毎回ちがう吸引行列。何が生まれるかはお楽しみ',
+      K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'jitter', random: true,
+    },
+    chase: {
+      id: 'chase', label: '循環追跡', emoji: '🏃',
+      desc: '追う・逃げるが連鎖して、生き物みたいに動き続ける',
+      K: 6, params: { rmax: 0.055, half: 0.05, F: 0.4, beta: 0.3 }, fn: 'chase',
+    },
+    whirl: {
+      id: 'whirl', label: '渦ワルツ', emoji: '🌀',
+      desc: '渦を巻くように回りながら群れる',
+      K: 6, params: { rmax: 0.06, half: 0.07, F: 0.5, beta: 0.3 }, fn: 'whirl',
+    },
+    predator: {
+      id: 'predator', label: '捕食ピラミッド', emoji: '🦈',
+      desc: '食う・食われるの連鎖で、にわとり小屋みたいになる',
+      K: 6, params: { rmax: 0.07, half: 0.05, F: 0.5, beta: 0.3 }, fn: 'predator',
+    },
+  };
+
+  function buildMatrix(fn, K, rng) {
+    var M = new Float32Array(K * K);
+    for (var i = 0; i < K; i++) {
+      for (var j = 0; j < K; j++) {
+        var v = fn(i, j, K, rng);
+        M[i * K + j] = Math.max(-1, Math.min(1, v));
+      }
+    }
+    return M;
+  }
+
+  /** プリセットID + シードから、実際のパラメータ一式を作る */
+  function makePreset(id, seed) {
+    var def = PRESETS[id] || PRESETS.himo;
+    var rng = mulberry32((seed >>> 0) ^ 0x9e3779b9);
+    return {
+      id: def.id,
+      label: def.label,
+      K: def.K,
+      params: {
+        rmax: def.params.rmax != null ? def.params.rmax : SIM_DEFAULTS.rmax,
+        half: def.params.half != null ? def.params.half : SIM_DEFAULTS.half,
+        F: def.params.F != null ? def.params.F : SIM_DEFAULTS.F,
+        beta: def.params.beta != null ? def.params.beta : SIM_DEFAULTS.beta,
+        dt: def.params.dt != null ? def.params.dt : SIM_DEFAULTS.dt,
+      },
+      matrix: buildMatrix(MATRIX_FNS[def.fn], def.K, rng),
+    };
+  }
+
+  /* ---------- 物理本体 ---------------------------------------- */
+  function ParticleLife(opts) {
+    opts = opts || {};
+    var o = Object.assign({}, SIM_DEFAULTS, opts);
+    this.N = o.N | 0;
+    this.K = o.K | 0;
+    this.rmax = o.rmax;
+    this.half = o.half;
+    this.F = o.F;
+    this.beta = o.beta;
+    this.dt = o.dt;
+    this.M = new Float32Array(MK * MK);
+    this.seed = o.seed >>> 0;
+    this.random = mulberry32(this.seed || 1);
+    this.time = 0;
+
+    var N = this.N;
+    this.px = new Float32Array(N);
+    this.py = new Float32Array(N);
+    this.vx = new Float32Array(N);
+    this.vy = new Float32Array(N);
+    this.type = new Uint8Array(N);
+    this.alive = new Uint8Array(N);
+
+    this.C = Math.max(3, Math.floor(1 / this.rmax));
+    var nc = this.C * this.C;
+    this.gStart = new Int32Array(nc + 1);
+    this.gPtr = new Int32Array(nc + 1);
+    this.gOrder = new Int32Array(N);
+    this.gCell = new Int32Array(N);
+    this._gridTime = -1;
+
+    // クラスタ解析用の作業領域（毎フレームのアロケーションを避ける）
+    this._ufParent = new Int32Array(N);
+    this._ufRank = new Uint8Array(N);
+    this._rootOf = new Int32Array(N);
+    this._rootStamp = new Int32Array(N);
+    this._aggSize = new Int32Array(N);
+    this._aggSx = new Float64Array(N);
+    this._aggSy = new Float64Array(N);
+    this._aggSxx = new Float64Array(N);
+    this._aggSyy = new Float64Array(N);
+    this._aggSxy = new Float64Array(N);
+    this._head = new Int32Array(N);
+    this._next = new Int32Array(N);
+    this._kd = new Float64Array(4);
+    this._kj = new Int32Array(4);
+    this._gen = 0;
+
+    if (o.matrix && o.matrix.length >= this.K * this.K) this.setMatrix(o.matrix, this.K);
+    this.reset();
+  }
+
+  ParticleLife.prototype.setMatrix = function (flat, K) {
+    if (K) this.K = K | 0;
+    this.M.fill(0);
+    for (var i = 0; i < this.K; i++) {
+      for (var j = 0; j < this.K; j++) {
+        this.M[i * MK + j] = flat[i * this.K + j] || 0;
+      }
+    }
+  };
+
+  ParticleLife.prototype.getMatrix = function () {
+    var out = new Float32Array(this.K * this.K);
+    for (var i = 0; i < this.K; i++) {
+      for (var j = 0; j < this.K; j++) out[i * this.K + j] = this.M[i * MK + j];
+    }
+    return out;
+  };
+
+  ParticleLife.prototype.reset = function () {
+    var N = this.N, K = this.K;
+    for (var i = 0; i < N; i++) {
+      this.type[i] = Math.min(K - 1, Math.floor((i * K) / N));
+      this.px[i] = this.random();
+      this.py[i] = this.random();
+      this.vx[i] = 0;
+      this.vy[i] = 0;
+      this.alive[i] = 1;
+    }
+    this.time = 0;
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.setAlive = function (i, on) {
+    this.alive[i] = on ? 1 : 0;
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.respawn = function (i) {
+    this.px[i] = this.random();
+    this.py[i] = this.random();
+    this.vx[i] = 0;
+    this.vy[i] = 0;
+    this.alive[i] = 1;
+    this._gridTime = -1;
+  };
+
+  /** 全粒子を撒き直す（世代交代の演出用） */
+  ParticleLife.prototype.scatter = function () {
+    for (var i = 0; i < this.N; i++) {
+      this.px[i] = this.random();
+      this.py[i] = this.random();
+      this.vx[i] = 0;
+      this.vy[i] = 0;
+      this.alive[i] = 1;
+    }
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.countAlive = function () {
+    var n = 0;
+    for (var i = 0; i < this.N; i++) n += this.alive[i];
+    return n;
+  };
+
+  ParticleLife.prototype._buildGrid = function () {
+    if (this._gridTime === this.time) return;
+    var N = this.N, C = this.C, nc = C * C;
+    var start = this.gStart, ptr = this.gPtr, order = this.gOrder, cellOf = this.gCell;
+    var px = this.px, py = this.py, alive = this.alive;
+    start.fill(0);
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) { cellOf[i] = -1; continue; }
+      var cx = (px[i] * C) | 0, cy = (py[i] * C) | 0;
+      if (cx >= C) cx = C - 1; if (cy >= C) cy = C - 1;
+      var c = cy * C + cx;
+      cellOf[i] = c;
+      start[c + 1]++;
+    }
+    for (var c = 0; c < nc; c++) start[c + 1] += start[c];
+    for (var k = 0; k < nc + 1; k++) ptr[k] = start[k];
+    for (var q = 0; q < N; q++) {
+      if (cellOf[q] >= 0) order[ptr[cellOf[q]]++] = q;
+    }
+    this._gridTime = this.time;
+  };
+
+  /** 1ステップ（元実装の step() と同じ式） */
+  ParticleLife.prototype.step = function () {
+    this._buildGrid();
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var tp = this.type, alive = this.alive, M = this.M;
+    var C = this.C, start = this.gStart, order = this.gOrder, cellOf = this.gCell;
+    var rmax = this.rmax, r2 = rmax * rmax, beta = this.beta, ib = 1 / (1 - beta);
+    var dt = this.dt, F = this.F;
+    var ff = Math.pow(0.5, dt / this.half);
+    var t, row, c, cx, cy, xi, yi, fx, fy;
+    var oy, ox, yy, cc, e, k, j, dx, dy, d2, d, r, f, s;
+
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      xi = px[i]; yi = py[i]; row = tp[i] * MK; c = cellOf[i];
+      cx = c % C; cy = (c / C) | 0;
+      fx = 0; fy = 0;
+      for (oy = -1; oy <= 1; oy++) {
+        yy = (cy + oy + C) % C;
+        for (ox = -1; ox <= 1; ox++) {
+          cc = yy * C + ((cx + ox + C) % C);
+          e = start[cc + 1];
+          for (k = start[cc]; k < e; k++) {
+            j = order[k];
+            if (j === i) continue;
+            dx = px[j] - xi; dy = py[j] - yi;
+            if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+            if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+            d2 = dx * dx + dy * dy;
+            if (d2 >= r2 || d2 < 1e-12) continue;
+            d = Math.sqrt(d2);
+            r = d / rmax;
+            f = r < beta ? r / beta - 1 : M[row + tp[j]] * (1 - Math.abs(2 * r - 1 - beta) * ib);
+            s = f / d;
+            fx += dx * s; fy += dy * s;
+          }
+        }
+      }
+      vx[i] = vx[i] * ff + fx * F * dt;
+      vy[i] = vy[i] * ff + fy * F * dt;
+      var nx = xi + vx[i] * dt, ny = yi + vy[i] * dt;
+      if (nx >= 1) nx -= 1; else if (nx < 0) nx += 1;
+      if (ny >= 1) ny -= 1; else if (ny < 0) ny += 1;
+      px[i] = nx; py[i] = ny;
+    }
+    this.time += dt;
+    this._gridTime = -1;
+  };
+
+  function wrapDelta(a) {
+    if (a > 0.5) a -= 1; else if (a < -0.5) a += 1;
+    return a;
+  }
+
+  /** 半径 R 以内の粒子を列挙（R <= rmax を想定） */
+  ParticleLife.prototype.forEachNear = function (x, y, R, fn) {
+    this._buildGrid();
+    var C = this.C, start = this.gStart, order = this.gOrder, alive = this.alive;
+    var px = this.px, py = this.py;
+    var cx = (x * C) | 0, cy = (y * C) | 0;
+    if (cx >= C) cx = C - 1; if (cy >= C) cy = C - 1;
+    var R2 = R * R;
+    var span = Math.max(1, Math.ceil(R / this.rmax));
+    for (var oy = -span; oy <= span; oy++) {
+      var yy = (cy + oy + C * 2) % C;
+      for (var ox = -span; ox <= span; ox++) {
+        var cc = yy * C + ((cx + ox + C * 2) % C);
+        var e = start[cc + 1];
+        for (var k = start[cc]; k < e; k++) {
+          var j = order[k];
+          if (!alive[j]) continue;
+          var dx = wrapDelta(px[j] - x), dy = wrapDelta(py[j] - y);
+          var d2 = dx * dx + dy * dy;
+          if (d2 <= R2) fn(j, dx, dy);
+        }
+      }
+    }
+  };
+
+  /** カーソルへの吸引（元実装の magnet 相当）。sp<0 なら全種類 */
+  ParticleLife.prototype.impulseTo = function (x, y, R, sp, strength, centerSoft) {
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var tp = this.type, alive = this.alive;
+    var soft = centerSoft || 0.015;
+    var R2 = R * R;
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      if (sp >= 0 && tp[i] !== sp) continue;
+      var dx = wrapDelta(x - px[i]), dy = wrapDelta(y - py[i]);
+      var d2 = dx * dx + dy * dy;
+      if (d2 >= R2) continue;
+      var d = Math.sqrt(d2) || 1e-6;
+      var w = strength * (1 - d / R) * Math.min(1, d / soft);
+      if (w <= 0) continue;
+      vx[i] += (dx / d) * w;
+      vy[i] += (dy / d) * w;
+    }
+  };
+
+  /** 中心から外向きに弾く（元実装の burst 相当） */
+  ParticleLife.prototype.burst = function (x, y, R, strength) {
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var alive = this.alive, R2 = R * R;
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      var dx = wrapDelta(px[i] - x), dy = wrapDelta(py[i] - y);
+      var d2 = dx * dx + dy * dy;
+      if (d2 >= R2) continue;
+      var d = Math.sqrt(d2);
+      var w = strength * (1 - d / R);
+      if (d < 1e-5) {
+        var a = this.random() * Math.PI * 2;
+        vx[i] += Math.cos(a) * w; vy[i] += Math.sin(a) * w;
+      } else {
+        vx[i] += (dx / d) * w;
+        vy[i] += (dy / d) * w;
+      }
+    }
+  };
+
+  /** ゆるやかな海流（発散ゼロの流れ場）。ヒモを壊さずに漂わせる演出用 */
+  ParticleLife.prototype.applyFlow = function (amp, t, phase) {
+    if (!amp) return;
+    var kx = 2 * Math.PI * 1.3, ky = 2 * Math.PI * 0.9, om = 0.35;
+    var ph = phase || 0;
+    for (var i = 0; i < this.N; i++) {
+      if (!this.alive[i]) continue;
+      var x = this.px[i], y = this.py[i];
+      this.vx[i] += amp * ky * Math.cos(ky * y + ph) * Math.sin(kx * x + om * t + ph) * 0.02;
+      this.vy[i] += -amp * kx * Math.cos(kx * x + om * t + ph) * Math.sin(ky * y + ph) * 0.02;
+    }
+  };
+
+  ParticleLife.prototype.meanSpeed = function () {
+    var s = 0, n = 0;
+    for (var i = 0; i < this.N; i++) {
+      if (!this.alive[i]) continue;
+      s += Math.hypot(this.vx[i], this.vy[i]);
+      n++;
+    }
+    return n ? s / n : 0;
+  };
+
+  /* ---------- クラスタ解析（ヒモ検出） ------------------------
+   * 各粒子を「近い順に K 個」の近傍とつないだグラフの連結成分を「個体」とみなす。
+   * 半径しきい値方式より、ヒモの切れ目・絡まり・密度ムラに強い。
+   * 主成分分析で細長さ（elongation）を出し、ヒモかカタマリかを判定する。
+   */
+  ParticleLife.prototype.clusters = function (opts) {
+    opts = opts || {};
+    var kLink = opts.k != null ? opts.k : 2;
+    var maxR = opts.maxR != null ? opts.maxR : this.rmax * 0.7;
+    var minSize = opts.minSize != null ? opts.minSize : 8;
+    var wormElong = opts.wormElong != null ? opts.wormElong : 2.0;
+    var radiusLink = opts.linkR; // 半径方式にしたいとき
+    this._buildGrid();
+
+    var N = this.N, alive = this.alive, px = this.px, py = this.py;
+    var C = this.C, start = this.gStart, order = this.gOrder, cellOf = this.gCell;
+    var parent = this._ufParent, rank = this._ufRank;
+    var i, j, c, cx, cy, oy, ox, yy, cc, e, dx, dy, d2;
+    var kd = this._kd, kj = this._kj;
+    var maxR2 = maxR * maxR;
+    var link2 = radiusLink != null ? radiusLink * radiusLink : 0;
+
+    for (i = 0; i < N; i++) { parent[i] = alive[i] ? i : -1; rank[i] = 0; }
+
+    function find(x) {
+      while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+      return x;
+    }
+    function unite(a, b) {
+      a = find(a); b = find(b);
+      if (a === b) return;
+      if (rank[a] < rank[b]) parent[a] = b;
+      else if (rank[a] > rank[b]) parent[b] = a;
+      else { parent[b] = a; rank[a]++; }
+    }
+
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      c = cellOf[i];
+      cx = c % C; cy = (c / C) | 0;
+      var xi = px[i], yi = py[i];
+      if (radiusLink != null) {
+        for (oy = -1; oy <= 1; oy++) {
+          yy = (cy + oy + C) % C;
+          for (ox = -1; ox <= 1; ox++) {
+            cc = yy * C + ((cx + ox + C) % C);
+            e = start[cc + 1];
+            for (var kk = start[cc]; kk < e; kk++) {
+              j = order[kk];
+              if (j <= i) continue;
+              dx = px[j] - xi; dy = py[j] - yi;
+              if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+              if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+              d2 = dx * dx + dy * dy;
+              if (d2 < link2) unite(i, j);
+            }
+          }
+        }
+        continue;
+      }
+      // 近傍 k 個を距離順に保持
+      kd[0] = Infinity; kd[1] = Infinity; kd[2] = Infinity;
+      kj[0] = -1; kj[1] = -1; kj[2] = -1;
+      for (oy = -1; oy <= 1; oy++) {
+        yy = (cy + oy + C) % C;
+        for (ox = -1; ox <= 1; ox++) {
+          cc = yy * C + ((cx + ox + C) % C);
+          e = start[cc + 1];
+          for (var k2 = start[cc]; k2 < e; k2++) {
+            j = order[k2];
+            if (j === i) continue;
+            dx = px[j] - xi; dy = py[j] - yi;
+            if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+            if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+            d2 = dx * dx + dy * dy;
+            if (d2 >= maxR2 || d2 <= 0) continue;
+            var pos = -1;
+            for (var q = 0; q < kLink; q++) { if (d2 < kd[q]) { pos = q; break; } }
+            if (pos < 0) continue;
+            for (q = kLink - 1; q > pos; q--) { kd[q] = kd[q - 1]; kj[q] = kj[q - 1]; }
+            kd[pos] = d2; kj[pos] = j;
+          }
+        }
+      }
+      for (var q2 = 0; q2 < kLink; q2++) if (kj[q2] >= 0) unite(i, kj[q2]);
+    }
+
+    // 根を集める
+    var gen = ++this._gen;
+    var stamp = this._rootStamp, rootOf = this._rootOf;
+    var roots = [];
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      var r = find(i);
+      rootOf[i] = r;
+      if (stamp[r] !== gen) { stamp[r] = gen; roots.push(r); }
+    }
+
+    // 集計領域を初期化
+    var aggSize = this._aggSize, aggSx = this._aggSx, aggSy = this._aggSy;
+    var aggSxx = this._aggSxx, aggSyy = this._aggSyy, aggSxy = this._aggSxy;
+    var head = this._head, next = this._next;
+    for (var ri = 0; ri < roots.length; ri++) {
+      var rr = roots[ri];
+      aggSize[rr] = 0; aggSx[rr] = 0; aggSy[rr] = 0;
+      aggSxx[rr] = 0; aggSyy[rr] = 0; aggSxy[rr] = 0;
+      head[rr] = -1;
+    }
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      r = rootOf[i];
+      next[i] = head[r];
+      head[r] = i;
+      var x = px[i], y = py[i];
+      aggSize[r]++;
+      aggSx[r] += x; aggSy[r] += y;
+      aggSxx[r] += x * x; aggSyy[r] += y * y; aggSxy[r] += x * y;
+    }
+
+    var out = [];
+    for (ri = 0; ri < roots.length; ri++) {
+      r = roots[ri];
+      var size = aggSize[r];
+      if (size < minSize) continue;
+      var inv = 1 / size;
+      var mx = aggSx[r] * inv, my = aggSy[r] * inv;
+      var varX = Math.max(0, aggSxx[r] * inv - mx * mx);
+      var varY = Math.max(0, aggSyy[r] * inv - my * my);
+      var cov = aggSxy[r] * inv - mx * my;
+      var tr = varX + varY;
+      var disc = Math.sqrt(Math.max(0, (tr * tr) / 4 - (varX * varY - cov * cov)));
+      var l1 = tr / 2 + disc, l2 = Math.max(tr / 2 - disc, 1e-10);
+      var elong = Math.sqrt(l1 / l2);
+
+      var members = new Array(size);
+      var species = new Int32Array(this.K);
+      var m = head[r], mi = 0;
+      while (m !== -1) {
+        members[mi++] = m;
+        species[this.type[m]]++;
+        m = next[m];
+      }
+      var dom = 0;
+      for (var s = 1; s < this.K; s++) if (species[s] > species[dom]) dom = s;
+      var speciesCount = 0;
+      for (var s2 = 0; s2 < this.K; s2++) if (species[s2] > 0) speciesCount++;
+
+      out.push({
+        size: size,
+        cx: mx, cy: my,
+        varX: varX, varY: varY, cov: cov,
+        rx: 2.0 * Math.sqrt(l1) + 0.004,
+        ry: 2.0 * Math.sqrt(l2) + 0.004,
+        angle: 0.5 * Math.atan2(2 * cov, varX - varY),
+        elongation: elong,
+        isWorm: size >= 10 && elong >= wormElong,
+        dominant: dom,
+        species: species,
+        speciesCount: speciesCount,
+        members: members,
+      });
+    }
+    out.sort(function (a, b) { return b.size - a.size; });
+    if (out.length > 160) out.length = 160;
+    return out;
+  };
+
+  /** 捕獲したときの見た目用スコア（ゲーム側で倍率をかける） */
+  function specimenValue(c) {
+    var base = 6 + c.size * 1.1;
+    if (c.isWorm) base += 14 + Math.min(c.elongation, 10) * 2.2;
+    base += (c.speciesCount - 1) * 5;
+    return Math.round(base);
+  }
+
+  return {
+    MK: MK,
+    SIM_DEFAULTS: SIM_DEFAULTS,
+    PRESETS: PRESETS,
+    MATRIX_FNS: MATRIX_FNS,
+    mulberry32: mulberry32,
+    makePreset: makePreset,
+    buildMatrix: buildMatrix,
+    ParticleLife: ParticleLife,
+    specimenValue: specimenValue,
+    wrapDelta: wrapDelta,
+  };
+});
+
+</script>
+<script>
+/* ==== src/derby.js ==== */
+/* ============================================================
+ * Particle Derby — 生態系の生き残り予想ゲーム
+ *
+ *  プレイヤーは群れを操作できない。賭けるだけ。
+ *  ランダム行列から自然に生まれた群れに番号をつけ、
+ *  レース終了時に「いちばん大きい群れ」を当てる。
+ *  雷撃は「その時のトップ」に落ちるので、オッズ通りにはいかない。
+ *
+ *  - 3レース / チップ制 / 予想が当たれば配当
+ *  - 群れの同一性は粒子の重なり（Jaccard）で追跡
+ * ============================================================ */
+(function () {
+  'use strict';
+
+  var WL = window.WL;
+  if (!WL) { console.error('WL missing'); return; }
+  var ParticleLife = WL.ParticleLife;
+  var makePreset = WL.makePreset;
+  var mulberry32 = WL.mulberry32;
+  var wrapDelta = WL.wrapDelta;
+
+  var COLORS = [
+    [110, 242, 192], [255, 209, 102], [255, 143, 163],
+    [157, 139, 255], [111, 198, 255], [255, 178, 107],
+  ];
+  var TAG_COLORS = [
+    [255, 209, 102], [110, 242, 192], [255, 143, 163], [183, 155, 255], [127, 198, 255],
+  ];
+  var TAG_HEX = TAG_COLORS.map(function (c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; });
+  var SPECIES_NAMES = ['ミント', 'レモン', 'ローズ', 'バイオレット', 'スカイ', 'ピーチ'];
+
+  var D = {
+    phase: 'intro',          // intro | cultivate | bet | race | result
+    race: 0, races: 3,
+    chips: 100, best: 0,
+    sim: null, K: 6, N: 3300,
+    seed: 1,
+    phaseTimer: 0, raceTime: 0,
+    tags: [], clusters: [], trackTimer: 0,
+    events: [], hazards: [], history: [],
+    stake: 10, totalBet: 0,
+    effects: [], texts: [], shake: 0, flash: 0,
+    respawn: [], lastToast: 0,
+    autoAdvance: false, resultTimer: 0, rerolls: 0,
+    timerLabel: '', timerSub: '',
+    acc: 0, last: 0,
+  };
+
+  var CULTIVATE_TIME = 7.0;
+  var BET_TIME = 15.0;
+  var RACE_TIME = 26.0;
+  var FIXED = 1 / 60;
+  var LS_BEST = 'particleDerby.best.v1';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('cv');
+  var ctx = canvas.getContext('2d');
+  var particleLayer = document.createElement('canvas');
+  var pctx = particleLayer.getContext('2d');
+  var bgCanvas = document.createElement('canvas');
+  var bgCtx = bgCanvas.getContext('2d');
+
+  var el = {
+    raceNum: $('race-num'), chips: $('chips'),
+    phaseLabel: $('phase-label'), phaseTimer: $('phase-timer'),
+    phaseBar: $('phase-bar'), phaseSub: $('phase-sub'),
+    panelTitle: $('panel-title'), panelTools: $('panel-tools'),
+    candRow: $('cand-row'), standRow: $('stand-row'), panelNote: $('panel-note'),
+    intro: $('intro-screen'), result: $('result-screen'), resultCard: $('result-card'),
+    toast: $('toast'),
+  };
+
+  /* ---------- レイアウト ------------------------------------- */
+  var W = 0, H = 0, S = 0, OX = 0, OY = 0, dpr = 1;
+  var sprites = [], coreSprites = [];
+
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    particleLayer.width = Math.max(1, Math.round(canvas.width * 0.62));
+    particleLayer.height = Math.max(1, Math.round(canvas.height * 0.62));
+    bgCanvas.width = canvas.width; bgCanvas.height = canvas.height;
+    var hudH = 64;
+    var panelW = W >= 900 ? 370 : 0;
+    var panelH = W < 900 ? 224 : 0;
+    S = Math.max(230, Math.min(W - panelW - 24, H - hudH - panelH - 12));
+    OX = (W - panelW - S) / 2;
+    OY = hudH + Math.max(4, (H - hudH - panelH - S) / 2);
+    buildSprites();
+    buildBackground();
+    pctx.setTransform(1, 0, 0, 1, 0, 0);
+    pctx.clearRect(0, 0, particleLayer.width, particleLayer.height);
+  }
+
+  function buildSprites() {
+    sprites = COLORS.map(function (c) {
+      var size = 64, cv = document.createElement('canvas');
+      cv.width = cv.height = size;
+      var g = cv.getContext('2d');
+      var grd = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+      grd.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.34)');
+      grd.addColorStop(0.42, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.17)');
+      grd.addColorStop(0.76, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.05)');
+      grd.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0)');
+      g.fillStyle = grd;
+      g.beginPath(); g.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); g.fill();
+      return cv;
+    });
+    coreSprites = COLORS.map(function (c) {
+      var size = 32, cv = document.createElement('canvas');
+      cv.width = cv.height = size;
+      var g = cv.getContext('2d');
+      g.beginPath(); g.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2);
+      g.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; g.fill();
+      return cv;
+    });
+  }
+
+  function buildBackground() {
+    var w = bgCanvas.width, h = bgCanvas.height;
+    bgCtx.setTransform(1, 0, 0, 1, 0, 0);
+    var g = bgCtx.createRadialGradient(w * 0.5, h * 0.4, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.78);
+    g.addColorStop(0, '#0a1428'); g.addColorStop(0.45, '#060b18'); g.addColorStop(1, '#02040a');
+    bgCtx.fillStyle = g; bgCtx.fillRect(0, 0, w, h);
+    var blooms = [
+      { x: 0.18, y: 0.12, c: 'rgba(70,200,255,0.10)' },
+      { x: 0.84, y: 0.2, c: 'rgba(255,170,90,0.08)' },
+      { x: 0.7, y: 0.92, c: 'rgba(255,110,170,0.06)' },
+    ];
+    for (var i = 0; i < blooms.length; i++) {
+      var b = blooms[i];
+      var bg = bgCtx.createRadialGradient(b.x * w, b.y * h, 0, b.x * w, b.y * h, 0.5 * Math.max(w, h));
+      bg.addColorStop(0, b.c); bg.addColorStop(1, 'rgba(0,0,0,0)');
+      bgCtx.fillStyle = bg; bgCtx.fillRect(0, 0, w, h);
+    }
+    var rng = mulberry32(31337);
+    bgCtx.fillStyle = 'rgba(200,225,255,0.5)';
+    for (var k = 0; k < 100; k++) {
+      bgCtx.globalAlpha = 0.08 + rng() * 0.28;
+      bgCtx.beginPath(); bgCtx.arc(rng() * w, rng() * h, (rng() * 1.2 + 0.3) * dpr, 0, Math.PI * 2); bgCtx.fill();
+    }
+    bgCtx.globalAlpha = 1;
+  }
+
+  /* ---------- サウンド --------------------------------------- */
+  var Sound = {
+    ctx: null, master: null, on: true,
+    init: function () {
+      if (!this.ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.26;
+        this.master.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    tone: function (freq, dur, type, vol, slideTo, delay) {
+      if (!this.on || !this.ctx) return;
+      var t0 = this.ctx.currentTime + (delay || 0);
+      var o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, t0);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(this.master);
+      o.start(t0); o.stop(t0 + dur + 0.03);
+    },
+    bet: function () { this.tone(660, 0.08, 'triangle', 0.08); this.tone(990, 0.1, 'sine', 0.05, null, 0.05); },
+    strike: function () { this.tone(1200, 0.12, 'sawtooth', 0.08, 200); this.tone(80, 0.3, 'sine', 0.12, 40); },
+    blast: function () { this.tone(90, 0.4, 'sawtooth', 0.12, 40); this.tone(300, 0.2, 'triangle', 0.06, 80); },
+    mutate: function () { this.tone(300, 0.3, 'sine', 0.08, 900); },
+    win: function () { this.tone(660, 0.12, 'sine', 0.12); this.tone(880, 0.14, 'sine', 0.1, null, 0.1); this.tone(1174, 0.26, 'sine', 0.1, null, 0.2); },
+    lose: function () { this.tone(300, 0.25, 'triangle', 0.08, 180); },
+    start: function () { this.tone(440, 0.12, 'sine', 0.1); this.tone(660, 0.16, 'sine', 0.08, null, 0.09); },
+  };
+
+  /* ---------- 状態遷移 --------------------------------------- */
+  function startGame(seedOverride) {
+    D.seed = seedOverride != null ? seedOverride : ((Math.random() * 1e9) >>> 0);
+    D.chips = 100; D.race = 0; D.history = []; D.best = loadBest();
+    el.intro.classList.add('hidden');
+    el.result.classList.add('hidden');
+    startNextRace();
+    Sound.init(); Sound.start();
+  }
+
+  function startNextRace() {
+    D.race++;
+    D.phase = 'cultivate';
+    D.phaseTimer = CULTIVATE_TIME;
+    D.raceTime = 0;
+    D.tags = []; D.clusters = [];
+    D.events = []; D.effects = []; D.texts = [];
+    D.totalBet = 0; D.respawn = []; D.rerolls = 0;
+    D.stake = 10;
+    D.autoAdvance = false;
+    buildWorld();
+    if (D.race === 1) setTimeout(function () { el.intro.classList.add('hidden'); }, 0);
+    el.result.classList.add('hidden');
+    el.raceNum.textContent = D.race;
+    buildPanelCultivate();
+    toast('第' + D.race + 'レース — 培養をはじめた');
+  }
+
+  function buildWorld() {
+    var rng = mulberry32((D.seed + D.race * 7919) >>> 0);
+    var K = 6;
+    var M = new Float32Array(K * K);
+    for (var i = 0; i < K; i++) {
+      for (var j = 0; j < K; j++) {
+        M[i * K + j] = i === j ? 0.15 + rng() * 0.6 : (rng() * 2 - 1);
+      }
+    }
+    D.K = K;
+    D.sim = new ParticleLife({
+      N: D.N, K: K, seed: (rng() * 1e9) >>> 0,
+      rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3, dt: 0.02,
+      matrix: M,
+    });
+    D.sim.scatter();
+    D.sim.applyFlow(0.02, 0, 0.4);
+  }
+
+  /* ---------- 候補（出馬表） -------------------------------- */
+  function beginBetting() {
+    var sim = D.sim;
+    var cs = sim.clusters({ minSize: 16, k: 2, maxR: sim.rmax * 0.7 });
+    var picked = [];
+    var minDist = 0.105;
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < cs.length && picked.length < 5; i++) {
+        var c = cs[i];
+        var ok = true;
+        for (var p = 0; p < picked.length; p++) {
+          if (Math.hypot(wrapDelta(c.cx - picked[p].cx), wrapDelta(c.cy - picked[p].cy)) < minDist) { ok = false; break; }
+        }
+        if (ok) picked.push(c);
+      }
+      minDist *= 0.58;
+    }
+    if (picked.length < 3) {
+      if (D.rerolls < 2) {
+        D.rerolls++;
+        buildWorld();
+        D.phaseTimer = 2.0;
+        toast('群れが少ない… 培養液をやり直し');
+        return;
+      }
+      picked = cs.slice(0, 3);
+    }
+    picked.sort(function (a, b) { return b.size - a.size; });
+    D.tags = picked.map(function (c, idx) {
+      return {
+        number: idx + 1,
+        color: TAG_COLORS[idx % TAG_COLORS.length],
+        hex: TAG_HEX[idx % TAG_HEX.length],
+        name: shapeName(c),
+        size: c.size,
+        cx: c.cx, cy: c.cy,
+        rx: c.rx, ry: c.ry, angle: c.angle,
+        members: new Set(c.members),
+        alive: true,
+        reason: null,
+        odds: 1, bet: 0, growth: 0,
+        leaderAt: -1,
+      };
+    });
+    buildHazards();
+    computeOdds();
+    D.phase = 'bet';
+    D.phaseTimer = BET_TIME;
+    buildBetPanel();
+    toast('出馬表ができた — 賭ける群れを選んでください');
+  }
+
+  function shapeName(c) {
+    var color = SPECIES_NAMES[c.dominant % SPECIES_NAMES.length];
+    if (c.elongation >= 3.2) return color + 'のヒモ';
+    if (c.elongation >= 1.9) return color + 'のながれ';
+    if (c.size >= 55) return color + 'の塊';
+    return color + 'の群れ';
+  }
+
+  function buildHazards() {
+    D.hazards = [];
+    var times = D.race === 1 ? [7, 14, 20] : (D.race === 2 ? [6, 12, 18, 23] : [5.5, 11, 16, 21]);
+    for (var i = 0; i < times.length; i++) {
+      // 候補のどれかを狙って置く（最初はトップを狙う）
+      var target = D.tags[Math.floor(Math.random() * D.tags.length)];
+      var ang = Math.random() * Math.PI * 2;
+      var rad = 0.03 + Math.random() * 0.07;
+      var x = target.cx + Math.cos(ang) * rad;
+      var y = target.cy + Math.sin(ang) * rad;
+      x = Math.max(0.12, Math.min(0.88, x));
+      y = Math.max(0.12, Math.min(0.88, y));
+      D.hazards.push({
+        t: times[i], x: x, y: y,
+        r: 0.105 + Math.random() * 0.03,
+        triggered: false,
+      });
+    }
+  }
+
+  function riskOf(t) {
+    var risk = 0;
+    for (var i = 0; i < D.hazards.length; i++) {
+      var h = D.hazards[i];
+      var d = Math.hypot(wrapDelta(h.x - t.cx), wrapDelta(h.y - t.cy));
+      if (d < h.r + Math.min(t.rx || 0.02, t.ry || 0.02) + 0.05) risk++;
+    }
+    return risk;
+  }
+
+  function computeOdds() {
+    var w = D.tags.map(function (t) {
+      var g = 1 + Math.max(-0.25, Math.min(0.25, t.growth || 0)) * 0.5;
+      t.risk = riskOf(t);
+      var riskFactor = 1 / (1 + 0.45 * t.risk);
+      return Math.pow(t.size, 1.05) * g * riskFactor * (0.96 + 0.08 * Math.sin(t.number * 2.1));
+    });
+    var sum = 0;
+    for (var i = 0; i < w.length; i++) sum += w[i];
+    for (var j = 0; j < D.tags.length; j++) {
+      var p = w[j] / sum;
+      D.tags[j].odds = Math.max(1.2, Math.min(14, Math.round((0.94 / p) * 10) / 10));
+    }
+  }
+
+  function startRace() {
+    D.phase = 'race';
+    D.phaseTimer = RACE_TIME;
+    D.raceTime = 0;
+    D.events = D.hazards.map(function (h) { return { type: 'blast', t: h.t, hazard: h, done: false }; });
+    if (D.race >= 2) D.events.push({ type: 'mutate', t: 17, done: false });
+    if (D.race >= 3) D.events.push({ type: 'mutate', t: 24, done: false });
+    D.trackTimer = 0;
+    buildRacePanel();
+    toast('レース開始！');
+    Sound.start();
+  }
+
+  function buildEvents(race) {
+    if (race === 1) return [{ t: 7, type: 'blast' }, { t: 14, type: 'blast' }, { t: 20, type: 'blast' }];
+    if (race === 2) return [{ t: 6, type: 'blast' }, { t: 12, type: 'blast' }, { t: 18, type: 'blast' }, { t: 23, type: 'blast' }];
+    return [{ t: 5.5, type: 'blast' }, { t: 11, type: 'blast' }, { t: 16, type: 'blast' }, { t: 21, type: 'blast' }, { t: 17, type: 'mutate' }];
+  }
+
+  /* ---------- 群れの追跡 ------------------------------------- */
+  function trackTags() {
+    var sim = D.sim;
+    var cs = sim.clusters({ minSize: 6, k: 2, maxR: sim.rmax * 0.7 });
+    D.clusters = cs;
+    if (!D.tags.length) return;
+    var assignments = new Map();
+    for (var i = 0; i < D.tags.length; i++) {
+      var t = D.tags[i];
+      if (!t.alive) continue;
+      var best = null, bestFrac = 0;
+      for (var ci = 0; ci < cs.length; ci++) {
+        var c = cs[ci];
+        var hit = 0, mem = c.members;
+        for (var m = 0; m < mem.length; m++) if (t.members.has(mem[m])) hit++;
+        var frac = hit / Math.max(1, Math.min(t.members.size, c.size));
+        if (frac > bestFrac) { bestFrac = frac; best = c; }
+      }
+      if (best && bestFrac >= 0.22) {
+        var arr = assignments.get(best);
+        if (!arr) { arr = []; assignments.set(best, arr); }
+        arr.push({ tag: t, frac: bestFrac });
+      } else {
+        t.miss = (t.miss || 0) + 1;
+        if (t.miss >= 2) eliminate(t, '崩壊');
+      }
+    }
+    assignments.forEach(function (arr, c) {
+      if (arr.length === 1) {
+        updateTag(arr[0].tag, c);
+      } else {
+        arr.sort(function (a, b) { return b.tag.members.size - a.tag.members.size; });
+        updateTag(arr[0].tag, c);
+        for (var k = 1; k < arr.length; k++) {
+          eliminate(arr[k].tag, '合流');
+        }
+      }
+    });
+  }
+
+  function eliminate(t, reason) {
+    if (!t.alive) return;
+    t.alive = false;
+    t.reason = reason;
+    addText(t.cx, t.cy, t.number + '番 ' + (reason === '合流' ? '合流' : '崩壊'), reason === '合流' ? '#8ea3c2' : '#ff8fa3', 14);
+    if (D.phase === 'bet' && t.bet > 0) {
+      D.chips += t.bet;
+      D.totalBet -= t.bet;
+      toast(t.number + '番が' + reason + ' → ' + t.bet + 'チップ返金');
+      t.bet = 0;
+      renderCandidates();
+    }
+  }
+
+  function updateTag(t, c) {
+    t.miss = 0;
+    if (!t.size0) t.size0 = t.size;
+    t.members = new Set(c.members);
+    t.size = c.size;
+    t.growth = (c.size - t.size0) / Math.max(1, t.size0);
+    t.cx = c.cx;
+    t.cy = c.cy;
+    t.rx = c.rx;
+    t.ry = c.ry;
+    t.angle = c.angle;
+  }
+
+  function aliveTags() {
+    return D.tags.filter(function (t) { return t.alive; }).sort(function (a, b) { return b.size - a.size; });
+  }
+
+  /* ---------- レースイベント --------------------------------- */
+  function blastAt(x, y, R) {
+    var sim = D.sim;
+    var removed = 0;
+    sim.forEachNear(x, y, R, function (i) {
+      if (!sim.alive[i]) return;
+      if (Math.random() < 0.26) return;
+      sim.setAlive(i, false);
+      D.respawn.push({ i: i, at: D.raceTime + 4 + Math.random() * 4 });
+      removed++;
+    });
+    sim.burst(x, y, R * 2.2, 0.7);
+    addRing(x, y, 0.02, R * 3.2, 'rgba(255,190,140,0.9)', 0.6);
+    for (var s = 0; s < 26; s++) {
+      var a = Math.random() * Math.PI * 2, sp = 0.06 + Math.random() * 0.16;
+      addSpark(x, y, Math.cos(a) * sp, Math.sin(a) * sp, [255, 200, 150], 0.6);
+    }
+    D.shake = Math.max(D.shake, 13);
+    D.flash = Math.max(D.flash, 0.5);
+    toast('💥 予告どおり大爆発！');
+    Sound.blast();
+    void removed;
+  }
+
+  function mutate() {
+    var sim = D.sim;
+    for (var n = 0; n < 8; n++) {
+      var i = Math.floor(Math.random() * D.K), j = Math.floor(Math.random() * D.K);
+      var k = i * WL.MK + j;
+      sim.M[k] = Math.max(-1, Math.min(1, sim.M[k] + (Math.random() * 2 - 1) * 0.22));
+    }
+    addRing(0.5, 0.5, 0.05, 0.6, 'rgba(190,150,255,0.8)', 0.7);
+    D.flash = Math.max(D.flash, 0.3);
+    toast('🧬 突然変異 — 生態系が変わった');
+    Sound.mutate();
+  }
+
+  function executeEvents() {
+    for (var i = 0; i < D.events.length; i++) {
+      var e = D.events[i];
+      if (e.done || D.raceTime < e.t) continue;
+      e.done = true;
+      if (e.type === 'blast') {
+        var hz = e.hazard;
+        hz.triggered = true;
+        blastAt(hz.x, hz.y, hz.r);
+      } else mutate();
+    }
+  }
+
+  /* ---------- 結果 ------------------------------------------- */
+  function endRace() {
+    D.phase = 'result';
+    D.resultTimer = 0;
+    var alive = aliveTags();
+    var winner = alive.length ? alive[0] : null;
+    var payout = 0;
+    if (winner && winner.bet > 0) {
+      payout = Math.round(winner.bet * winner.odds);
+      D.chips += payout;
+    } else if (!winner && D.totalBet > 0) {
+      // 全滅したレースは賭けを返金
+      D.chips += D.totalBet;
+      toast('全滅レース — 賭けは返金');
+    }
+    D.history.push({
+      race: D.race,
+      winner: winner ? winner.number : 0,
+      winnerName: winner ? winner.name : 'なし',
+      winnerSize: winner ? winner.size : 0,
+      payout: payout,
+      bets: D.totalBet,
+      chips: D.chips,
+      alive: alive.length,
+    });
+    if (D.chips > loadBest()) { try { localStorage.setItem(LS_BEST, String(D.chips)); } catch (e) { } }
+    el.chips.textContent = D.chips;
+    Sound[winner && winner.bet > 0 ? 'win' : 'lose']();
+    showResult(winner, payout);
+  }
+
+  function showResult(winner, payout) {
+    var rows = [];
+    var alive = aliveTags();
+    for (var i = 0; i < alive.length; i++) {
+      var t = alive[i];
+      rows.push(rowHtml(t, i + 1, false));
+    }
+    var dead = D.tags.filter(function (t) { return !t.alive; });
+    for (var j = 0; j < dead.length; j++) {
+      rows.push(rowHtml(dead[j], alive.length + j + 1, true));
+    }
+    var head;
+    if (winner) {
+      head = '<div class="winner-row">' +
+        '<div class="winner-badge" style="background:' + winner.hex + '">' + winner.number + '</div>' +
+        '<div class="winner-name">' + winner.name + '</div></div>' +
+        '<div class="result-sub">第 ' + D.race + ' レース 勝者 — ' + winner.size + '粒</div>';
+    } else {
+      head = '<div class="winner-name">勝者なし</div><div class="result-sub">すべての群れが消えてしまった…</div>';
+    }
+    var payLine;
+    if (winner && winner.bet > 0) {
+      payLine = '<div class="payout">+' + payout + '<small>チップ（賭け ' + winner.bet + ' × ' + winner.odds + '倍）</small></div>';
+    } else if (D.totalBet > 0) {
+      payLine = '<div class="payout" style="color:#8ea3c2; font-size:18px;">はずれ… -' + D.totalBet + ' チップ</div>';
+    } else {
+      payLine = '<div class="payout" style="color:#8ea3c2; font-size:18px;">観戦モード（賭けなし）</div>';
+    }
+    var isFinal = D.race >= D.races;
+    var buttons;
+    if (isFinal) {
+      buttons = '<button class="primary-btn" data-action="final">最終結果へ</button>';
+    } else {
+      buttons = '<button class="primary-btn" data-action="next">次のレースへ</button>';
+    }
+    el.resultCard.innerHTML = head + payLine +
+      '<div class="result-list">' + rows.join('') + '</div>' +
+      '<div class="buttons">' + buttons + '</div>';
+    el.result.classList.remove('hidden');
+  }
+
+  function rowHtml(t, rank, out) {
+    var betNote = t.bet > 0 ? ' ・賭け ' + t.bet : '';
+    var reason = out ? '（' + (t.reason || '脱落') + '）' : '生存';
+    return '<div class="result-row' + (out ? ' out' : '') + '">' +
+      '<span class="tag"><span class="dot" style="background:' + t.hex + '"></span>' + t.number + '番 ' + t.name + '</span>' +
+      '<span><b>' + t.size + '</b>粒 ・' + reason + betNote + '</span></div>';
+  }
+
+  function showFinal() {
+    var rank;
+    var c = D.chips;
+    if (c >= 280) rank = 'S';
+    else if (c >= 190) rank = 'A';
+    else if (c >= 130) rank = 'B';
+    else if (c >= 90) rank = 'C';
+    else rank = 'D';
+    var rows = D.history.map(function (h) {
+      var mark = h.payout > 0 ? '的中 +' + h.payout : 'はずれ';
+      return '<div class="result-row"><span>' + h.race + 'R ・ ' + h.winner + '番 ' + h.winnerName + '</span>' +
+        '<span>' + mark + ' ／ 残り ' + h.chips + '</span></div>';
+    }).join('');
+    el.resultCard.innerHTML =
+      '<div class="kicker">FINAL RESULT</div>' +
+      '<div class="final-rank">' + rank + '</div>' +
+      '<div class="payout">' + D.chips + '<small>チップ</small></div>' +
+      '<div class="result-sub">3レースの合計 ・ BEST ' + loadBest() + '</div>' +
+      '<div class="result-list">' + rows + '</div>' +
+      '<div class="buttons">' +
+      '<button class="primary-btn" data-action="retry">もういちど</button>' +
+      '<button class="ghost-btn" data-action="home">タイトルへ</button></div>';
+    el.result.classList.remove('hidden');
+    Sound.win();
+  }
+
+  /* ---------- パネル ----------------------------------------- */
+  function buildPanelCultivate() {
+    el.candRow.style.display = 'none';
+    el.standRow.style.display = 'none';
+    el.panelNote.style.display = 'block';
+    el.panelNote.textContent = '培養中… 粒から群れが生まれています。もうすぐ出馬表が出ます。';
+    el.panelTitle.innerHTML = '<b>培養中</b> — 生態系ができるのを待っています';
+    el.panelTools.innerHTML = '';
+    var ev = buildEvents(D.race);
+    var names = { strike: '⚡ 雷撃', blast: '💥 大爆発', mutate: '🧬 突然変異' };
+    var strip = ev.map(function (e) { return e.t.toFixed(0) + '秒 ' + names[e.type]; }).join(' ／ ');
+    el.panelNote.textContent = 'このレースのイベント: ' + strip;
+  }
+
+  function buildBetPanel() {
+    el.candRow.style.display = 'flex';
+    el.standRow.style.display = 'none';
+    el.panelNote.style.display = 'none';
+    el.panelTitle.innerHTML = '<b>出馬表</b> — 賭ける群れを選べ';
+    el.panelTools.innerHTML =
+      [10, 25, 50].map(function (v) {
+        return '<button class="chip-btn' + (D.stake === v ? ' on' : '') + '" data-stake="' + v + '">' + v + '</button>';
+      }).join('') +
+      '<button class="chip-btn" data-action="clear">賭けを戻す</button>' +
+      '<button class="primary-btn" data-action="go">レース開始</button>';
+    el.panelTools.insertAdjacentHTML('beforeend',
+      '<span style="font-size:10px;color:#8ea3c2;width:100%;">⚠ = 予告された大爆発の範囲に入っている群れ（危険）</span>');
+    renderCandidates();
+  }
+
+  function renderCandidates() {
+    var html = '';
+    for (var i = 0; i < D.tags.length; i++) {
+      var t = D.tags[i];
+      var riskBadge = t.alive ? (t.risk > 0 ? '<span style="color:#ff9f7a">⚠' + t.risk + '</span> ' : '<span style="color:#6ef2c0">安全</span> ') : '';
+      html += '<button class="cand' + (t.bet > 0 ? ' bet' : '') + (t.alive ? '' : ' dead') + '" data-tag="' + i + '">' +
+        '<span class="num" style="--c:' + t.hex + '">' + t.number + '</span>' +
+        '<span class="body"><span class="name">' + t.name + '</span>' +
+        '<span class="meta">' + t.size + '粒 ・ <span class="odds">' + t.odds.toFixed(1) + '倍</span> ・' + riskBadge +
+        (t.growth ? '↗+' + Math.round(Math.abs(t.growth) * 100) + '%' : '') + '</span>' +
+        '<span class="stake">' + (!t.alive ? '（' + t.reason + '）' : (t.bet > 0 ? '賭け ' + t.bet : '—')) + '</span></span></button>';
+    }
+    el.candRow.innerHTML = html;
+    el.chips.textContent = D.chips;
+    // 賭け合計
+    var note = el.panelNote;
+    note.style.display = 'block';
+    note.textContent = '賭け合計 ' + D.totalBet + ' チップ ／ 残り ' + D.chips + ' チップ';
+  }
+
+  function buildRacePanel() {
+    el.candRow.style.display = 'none';
+    el.standRow.style.display = 'flex';
+    el.panelNote.style.display = 'none';
+    el.panelTitle.innerHTML = '<b>実況</b> — 群れの順位（賭けた番号を応援）';
+    el.panelTools.innerHTML = '';
+    renderStandings(true);
+  }
+
+  function renderStandings(force) {
+    if (!D.tags.length) return;
+    var alive = aliveTags();
+    var html = '';
+    for (var i = 0; i < alive.length; i++) {
+      var t = alive[i];
+      html += '<div class="stand' + (i === 0 ? ' leader' : '') + '" style="--c:' + t.hex + '">' +
+        '<span class="rank">' + (i === 0 ? '👑' : (i + 1)) + '</span>' +
+        '<span class="num" style="--c:' + t.hex + '">' + t.number + '</span>' +
+        '<span><span class="sz">' + t.size + '</span>粒' + (t.bet > 0 ? ' ・賭' + t.bet : '') +
+        '<br><span class="note">' + t.name + ' ・ ' + t.odds.toFixed(1) + '倍</span></span></div>';
+    }
+    var dead = D.tags.filter(function (t) { return !t.alive; });
+    for (var j = 0; j < dead.length; j++) {
+      var d = dead[j];
+      html += '<div class="stand out" style="--c:' + d.hex + '">' +
+        '<span class="rank">—</span>' +
+        '<span class="num" style="--c:' + d.hex + '">' + d.number + '</span>' +
+        '<span><span class="sz">' + d.size + '</span>粒<br><span class="note">' + d.reason + '</span></span></div>';
+    }
+    el.standRow.innerHTML = html;
+    void force;
+  }
+
+  /* ---------- 更新 ------------------------------------------- */
+  function update(dt) {
+    if (!D.sim) return;
+    var sim = D.sim;
+    sim.applyFlow(0.02, sim.time, 0.4 + D.race);
+    sim.step();
+    // イベントで消えた粒を戻す
+    if (D.respawn.length) {
+      var keep = [];
+      for (var r = 0; r < D.respawn.length; r++) {
+        if (D.raceTime >= D.respawn[r].at) sim.respawn(D.respawn[r].i);
+        else keep.push(D.respawn[r]);
+      }
+      D.respawn = keep;
+    }
+    // 追跡
+    D.trackTimer += dt;
+    if (D.trackTimer >= 0.08 && (D.phase === 'bet' || D.phase === 'race')) {
+      D.trackTimer = 0;
+      trackTags();
+    }
+
+    if (D.phase === 'cultivate') {
+      D.phaseTimer -= dt;
+      if (D.phaseTimer <= 0) beginBetting();
+    } else if (D.phase === 'bet') {
+      D.phaseTimer -= dt;
+      if (D.phaseTimer <= 0) startRace();
+    } else if (D.phase === 'race') {
+      D.raceTime += dt;
+      D.phaseTimer = Math.max(0, RACE_TIME - D.raceTime);
+      executeEvents();
+      if (D.raceTime >= RACE_TIME) endRace();
+    } else if (D.phase === 'result') {
+      D.resultTimer += dt;
+      if (D.autoAdvance && D.resultTimer > 0.4) {
+        D.autoAdvance = false;
+        if (D.race >= D.races) showFinal();
+        else startNextRace();
+      }
+    }
+    // 賭け中に候補が全滅したら選び直す
+    if (D.phase === 'bet' && D.tags.length && aliveTags().length === 0) {
+      beginBetting();
+    }
+    updateEffects(dt);
+    updateHUD();
+  }
+
+  function updateEffects(dt) {
+    D.shake = Math.max(0, D.shake - dt * 30);
+    D.flash = Math.max(0, D.flash - dt * 2.2);
+    for (var i = D.effects.length - 1; i >= 0; i--) {
+      var e = D.effects[i];
+      e.t += dt;
+      if (e.t > e.dur) D.effects.splice(i, 1);
+    }
+    for (var j = D.texts.length - 1; j >= 0; j--) {
+      var t = D.texts[j];
+      t.t += dt;
+      if (t.t > t.dur) D.texts.splice(j, 1);
+    }
+  }
+
+  function updateHUD() {
+    el.chips.textContent = D.chips;
+    el.raceNum.textContent = D.race;
+    var label = '', sub = '', timer = '', frac = 0;
+    if (D.phase === 'cultivate') {
+      label = '培養中'; sub = '群れが生まれるのを待っています';
+      timer = D.phaseTimer.toFixed(1); frac = D.phaseTimer / CULTIVATE_TIME;
+    } else if (D.phase === 'bet') {
+      label = '賭ける時間'; sub = '群れは操作できません。オッズを読んで賭けよう';
+      timer = D.phaseTimer.toFixed(1); frac = D.phaseTimer / BET_TIME;
+    } else if (D.phase === 'race') {
+      label = 'レース中'; sub = '雷撃はそのときのトップに落ちる';
+      timer = D.phaseTimer.toFixed(1); frac = D.phaseTimer / RACE_TIME;
+      if (D.raceTime > 3 && D.tags.length) {
+        var alive = aliveTags();
+        if (alive.length) sub = '現在のトップ: ' + alive[0].number + '番 ' + alive[0].size + '粒';
+      }
+    } else if (D.phase === 'result') {
+      label = '結果'; sub = ''; timer = ''; frac = 0;
+    }
+    el.phaseLabel.textContent = label;
+    el.phaseSub.textContent = sub;
+    el.phaseTimer.textContent = timer;
+    el.phaseBar.style.width = Math.max(0, Math.min(1, frac)) * 100 + '%';
+    if (D.phase === 'race' && D.tags.length) {
+      if ((Date.now() / 150 | 0) !== D.lastStand) {
+        D.lastStand = Date.now() / 150 | 0;
+        renderStandings();
+      }
+    }
+  }
+
+  /* ---------- エフェクト ------------------------------------- */
+  function addRing(x, y, r0, r1, color, dur) {
+    D.effects.push({ type: 'ring', x: x, y: y, r0: r0, r1: r1, color: color, t: 0, dur: dur || 0.5 });
+  }
+  function addSpark(x, y, vx, vy, color, dur) {
+    D.effects.push({ type: 'spark', x: x, y: y, vx: vx, vy: vy, color: color, t: 0, dur: dur || 0.5, r: 1 + Math.random() * 2 });
+  }
+  function addBolt(x, y) {
+    D.effects.push({ type: 'bolt', x: x, y: y, t: 0, dur: 0.55, seed: Math.random() * 999 });
+  }
+  function addText(x, y, text, color, size) {
+    D.texts.push({ x: x, y: y, text: text, color: color, size: size || 14, t: 0, dur: 1.2 });
+  }
+  function toast(text) {
+    el.toast.textContent = text;
+    el.toast.classList.remove('show');
+    void el.toast.offsetWidth;
+    el.toast.classList.add('show');
+  }
+
+  /* ---------- 描画 ------------------------------------------- */
+  function render(now) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+    var shakeX = 0, shakeY = 0;
+    if (D.shake > 0.3) {
+      shakeX = (Math.random() - 0.5) * D.shake;
+      shakeY = (Math.random() - 0.5) * D.shake;
+    }
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+
+    roundRect(ctx, OX, OY, S, S, 24);
+    ctx.save();
+    ctx.clip();
+    var tg = ctx.createRadialGradient(OX + S * 0.5, OY + S * 0.46, S * 0.05, OX + S * 0.5, OY + S * 0.5, S * 0.72);
+    tg.addColorStop(0, 'rgba(20,34,58,0.55)');
+    tg.addColorStop(0.65, 'rgba(8,14,26,0.55)');
+    tg.addColorStop(1, 'rgba(4,7,14,0.75)');
+    ctx.fillStyle = tg;
+    ctx.fillRect(OX, OY, S, S);
+
+    drawParticles();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(particleLayer, 0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+
+    drawHazards(now);
+    drawTags(now);
+    drawEffects(now);
+    drawTexts();
+    ctx.restore();
+    ctx.restore();
+
+    roundRect(ctx, OX, OY, S, S, 24);
+    ctx.strokeStyle = 'rgba(150,200,255,0.16)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    if (D.flash > 0.01) {
+      ctx.fillStyle = 'rgba(255,225,200,' + (D.flash * 0.16).toFixed(3) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+    var vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.4, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+    void now;
+  }
+
+  function drawParticles() {
+    var sim = D.sim;
+    if (!sim) return;
+    var ps = dpr * 0.62;
+    pctx.setTransform(ps, 0, 0, ps, 0, 0);
+    pctx.imageSmoothingEnabled = true;
+    pctx.globalCompositeOperation = 'destination-out';
+    pctx.fillStyle = 'rgba(0,0,0,0.11)';
+    pctx.fillRect(0, 0, W, H);
+    var base = Math.max(10, Math.min(14.5, S * 0.0185));
+    var half = base / 2;
+    pctx.globalCompositeOperation = 'lighter';
+    var i, x, y, spr;
+    for (i = 0; i < sim.N; i++) {
+      if (!sim.alive[i]) continue;
+      spr = sprites[sim.type[i] % sprites.length];
+      x = OX + sim.px[i] * S; y = OY + sim.py[i] * S;
+      if (x < OX - base || x > OX + S + base || y < OY - base || y > OY + S + base) continue;
+      pctx.drawImage(spr, x - half, y - half, base, base);
+    }
+    var core = Math.max(2.8, base * 0.4), ch = core / 2;
+    pctx.globalCompositeOperation = 'source-over';
+    for (i = 0; i < sim.N; i++) {
+      if (!sim.alive[i]) continue;
+      spr = coreSprites[sim.type[i] % coreSprites.length];
+      x = OX + sim.px[i] * S; y = OY + sim.py[i] * S;
+      if (x < OX - base || x > OX + S + base || y < OY - base || y > OY + S + base) continue;
+      pctx.drawImage(spr, x - ch, y - ch, core, core);
+    }
+  }
+
+  function drawHazards(now) {
+    if (D.phase !== 'bet' && D.phase !== 'race') return;
+    for (var i = 0; i < D.hazards.length; i++) {
+      var h = D.hazards[i];
+      if (h.triggered) continue;
+      var cx = OX + h.x * S, cy = OY + h.y * S;
+      var r = h.r * S;
+      var left = D.phase === 'race' ? Math.max(0, h.t - D.raceTime) : h.t;
+      var pulse = 0.5 + 0.5 * Math.sin(now * 4 + i);
+      ctx.save();
+      ctx.setLineDash([7, 8]);
+      ctx.lineDashOffset = -now * 18;
+      ctx.strokeStyle = 'rgba(255,150,90,' + (0.35 + 0.3 * pulse).toFixed(2) + ')';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, 'rgba(255,140,80,0.10)');
+      g.addColorStop(1, 'rgba(255,140,80,0.02)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      // 予告ラベル
+      var label = '💥 ' + left.toFixed(0) + '秒';
+      ctx.font = '700 10px "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      var tw = ctx.measureText(label).width + 12;
+      roundRect(ctx, cx - tw / 2, cy - r - 14, tw, 17, 8);
+      ctx.fillStyle = 'rgba(8,14,26,0.78)';
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,190,140,0.95)';
+      ctx.fillText(label, cx, cy - r - 5.5);
+      ctx.restore();
+    }
+  }
+
+  function drawTags(now) {
+    if (!D.tags.length) return;
+    // 候補のハロー（どの塊が候補か分かるように）
+    for (var h = 0; h < D.tags.length; h++) {
+      var th = D.tags[h];
+      if (!th.alive) continue;
+      ctx.save();
+      ctx.translate(OX + th.cx * S, OY + th.cy * S);
+      ctx.rotate(th.angle || 0);
+      var rx = Math.min(Math.max((th.rx || 0.02) * S + 10, 16), S * 0.3);
+      var ry = Math.min(Math.max((th.ry || 0.02) * S + 8, 12), S * 0.3);
+      ctx.fillStyle = 'rgba(' + th.color[0] + ',' + th.color[1] + ',' + th.color[2] + ',0.06)';
+      ctx.strokeStyle = 'rgba(' + th.color[0] + ',' + th.color[1] + ',' + th.color[2] + ',0.32)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    var sorted = aliveTags();
+    for (var i = 0; i < sorted.length; i++) {
+      var t = sorted[i];
+      var isLeader = i === 0;
+      var x = OX + t.cx * S, y = OY + t.cy * S;
+      var lift = 26 + (t.size % 7);
+      var by = Math.max(OY + 16, Math.min(OY + S - 16, y - lift));
+      // 引き出し線
+      ctx.strokeStyle = 'rgba(' + t.color[0] + ',' + t.color[1] + ',' + t.color[2] + ',0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x, by + 6); ctx.stroke();
+      // バッジ
+      var w = 74, h = 26;
+      var pulse = isLeader ? 1 + 0.05 * Math.sin(now * 5) : 1;
+      ctx.save();
+      ctx.translate(Math.max(OX + w / 2 + 4, Math.min(OX + S - w / 2 - 4, x)), by);
+      ctx.scale(pulse, pulse);
+      roundRect(ctx, -w / 2, -h / 2, w, h, 9);
+      ctx.fillStyle = 'rgba(8,14,26,0.82)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(' + t.color[0] + ',' + t.color[1] + ',' + t.color[2] + ',0.8)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      // 番号
+      ctx.fillStyle = t.hex;
+      ctx.font = '900 14px "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(t.number), -w / 2 + 9, 1);
+      // 粒数
+      ctx.fillStyle = 'rgba(235,245,255,0.92)';
+      ctx.font = '800 12px "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(t.size + '', w / 2 - 8, 1);
+      // 賭けマーカー
+      if (t.bet > 0) {
+        ctx.fillStyle = '#ffd166';
+        ctx.font = '700 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('●', 0, -h / 2 - 7);
+      }
+      ctx.restore();
+      // 王冠
+      if (isLeader) {
+        ctx.fillStyle = 'rgba(255,209,102,0.95)';
+        ctx.beginPath();
+        ctx.moveTo(x, by - h / 2 - 16);
+        ctx.lineTo(x - 7, by - h / 2 - 5);
+        ctx.lineTo(x + 7, by - h / 2 - 5);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    // 脱落した群れの最後の位置に薄い×
+    for (var j = 0; j < D.tags.length; j++) {
+      var d = D.tags[j];
+      if (d.alive) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = 'rgba(200,210,230,0.6)';
+      ctx.lineWidth = 2;
+      var dx = OX + d.cx * S, dy = OY + d.cy * S;
+      ctx.beginPath(); ctx.moveTo(dx - 6, dy - 6); ctx.lineTo(dx + 6, dy + 6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(dx + 6, dy - 6); ctx.lineTo(dx - 6, dy + 6); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawEffects(now) {
+    for (var i = 0; i < D.effects.length; i++) {
+      var e = D.effects[i];
+      var p = e.t / e.dur;
+      if (e.type === 'ring') {
+        var ease = 1 - Math.pow(1 - p, 2);
+        ctx.strokeStyle = e.color;
+        ctx.globalAlpha = Math.max(0, 1 - p) * 0.9;
+        ctx.lineWidth = Math.max(1, 3 * (1 - p));
+        ctx.beginPath();
+        ctx.arc(OX + e.x * S, OY + e.y * S, (e.r0 + (e.r1 - e.r0) * ease) * S, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else if (e.type === 'spark') {
+        var a = 1 - p;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = 'rgba(' + e.color[0] + ',' + e.color[1] + ',' + e.color[2] + ',' + (0.8 * a).toFixed(2) + ')';
+        ctx.beginPath();
+        ctx.arc(OX + e.x * S, OY + e.y * S, e.r * (0.6 + a), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+      } else if (e.type === 'bolt') {
+        var tx = OX + e.x * S, ty = OY + e.y * S;
+        var top = OY + S * 0.02;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(190,225,255,' + Math.max(0, 1 - p * 1.4).toFixed(2) + ')';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        var rng = mulberry32((e.seed * 1000) | 0);
+        ctx.moveTo(tx + (rng() - 0.5) * 20, top);
+        var steps = 7;
+        for (var s = 1; s <= steps; s++) {
+          var yy = top + (ty - top) * (s / steps);
+          var off = (rng() - 0.5) * 26 * (1 - s / steps + 0.3);
+          ctx.lineTo(tx + off, yy);
+        }
+        ctx.stroke();
+        // 枝
+        ctx.strokeStyle = 'rgba(150,200,255,' + Math.max(0, 1 - p * 1.6).toFixed(2) + ')';
+        ctx.lineWidth = 1.2;
+        for (var b = 0; b < 3; b++) {
+          var by = top + (ty - top) * (0.3 + b * 0.18);
+          var dir = b % 2 ? 1 : -1;
+          ctx.beginPath();
+          ctx.moveTo(tx + (rng() - 0.5) * 10, by);
+          ctx.lineTo(tx + dir * (16 + rng() * 22), by + 18 + rng() * 20);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawTexts() {
+    for (var i = 0; i < D.texts.length; i++) {
+      var t = D.texts[i];
+      var p = t.t / t.dur;
+      var a = p < 0.15 ? p / 0.15 : (1 - Math.pow((p - 0.15) / 0.85, 2));
+      ctx.font = '800 ' + t.size + 'px "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Noto Sans JP", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.globalAlpha = Math.max(0, a);
+      var x = OX + t.x * S, y = OY + t.y * S - p * 26;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(3,7,14,0.7)';
+      ctx.strokeText(t.text, x, y);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, x, y);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    var rr = Math.min(r, w / 2, h / 2);
+    c.beginPath();
+    c.moveTo(x + rr, y);
+    c.arcTo(x + w, y, x + w, y + h, rr);
+    c.arcTo(x + w, y + h, x, y + h, rr);
+    c.arcTo(x, y + h, x, y, rr);
+    c.arcTo(x, y, x + w, y, rr);
+    c.closePath();
+  }
+
+  /* ---------- ループ ----------------------------------------- */
+  function loop(now) {
+    var dt = Math.min(0.05, (now - D.last) / 1000);
+    D.last = now;
+    D.acc += dt;
+    var steps = 0;
+    while (D.acc >= FIXED && steps < 3) {
+      if (D.phase === 'intro') {
+        if (D.sim) { D.sim.applyFlow(0.02, D.sim.time, 0.6); D.sim.step(); }
+      } else {
+        update(FIXED);
+      }
+      D.acc -= FIXED;
+      steps++;
+    }
+    if (steps >= 3) D.acc = 0;
+    render(now / 1000);
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- 入力 ------------------------------------------- */
+  function bindInput() {
+    $('start-btn').addEventListener('click', function () { Sound.init(); startGame(); });
+    var pt = $('panel-toggle');
+    if (pt) pt.addEventListener('click', function () { document.body.classList.toggle('panel-closed'); });
+    el.resultCard.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-action]') : null;
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      if (action === 'next') { el.result.classList.add('hidden'); startNextRace(); }
+      else if (action === 'final') { showFinal(); }
+      else if (action === 'retry') { startGame(); }
+      else if (action === 'home') { location.reload(); }
+    });
+    el.panelTools.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('button') : null;
+      if (!b) return;
+      var stake = b.getAttribute('data-stake');
+      if (stake) {
+        D.stake = parseInt(stake, 10);
+        buildBetPanel();
+        return;
+      }
+      var action = b.getAttribute('data-action');
+      if (action === 'clear') {
+        for (var i = 0; i < D.tags.length; i++) { D.chips += D.tags[i].bet; D.tags[i].bet = 0; }
+        D.totalBet = 0;
+        buildBetPanel();
+      } else if (action === 'go') {
+        if (D.phase === 'bet') startRace();
+      }
+    });
+    el.candRow.addEventListener('click', function (e) {
+      var card = e.target.closest ? e.target.closest('[data-tag]') : null;
+      if (!card) return;
+      if (D.phase !== 'bet') return;
+      var t = D.tags[parseInt(card.getAttribute('data-tag'), 10)];
+      if (!t || !t.alive || D.chips < D.stake) return;
+      D.chips -= D.stake;
+      t.bet += D.stake;
+      D.totalBet += D.stake;
+      Sound.bet();
+      renderCandidates();
+    });
+    window.addEventListener('keydown', function (e) {
+      if (e.code === 'Space' && D.phase === 'bet') { e.preventDefault(); startRace(); }
+    });
+  }
+
+  function loadBest() {
+    try { var v = parseInt(localStorage.getItem(LS_BEST) || '0', 10); return isNaN(v) ? 0 : v; } catch (e) { return 0; }
+  }
+
+  /* ---------- デバッグ --------------------------------------- */
+  function setupDebug(params) {
+    var simulate = params.get('simulate') === '1';
+    var shot = params.get('shot');
+    if (!simulate && !shot) return false;
+    var seed = parseInt(params.get('seed') || '7', 10);
+    startGame(seed);
+    if (simulate) {
+      var races = Math.max(1, Math.min(5, parseInt(params.get('races') || '3', 10)));
+      D.races = races;
+      var auto = [];
+      for (var r = 0; r < races; r++) {
+        var guard = 0;
+        while (D.phase === 'cultivate' && guard++ < 2000) update(FIXED);
+        if (D.phase !== 'bet') break;
+        var picks = D.tags.slice().sort(function () { return Math.random() - 0.5; }).slice(0, 2);
+        for (var p = 0; p < picks.length; p++) {
+          if (D.chips >= 10) { D.chips -= 10; picks[p].bet += 10; D.totalBet += 10; }
+        }
+        auto.push({
+          race: D.race,
+          tags: D.tags.map(function (t) { return { n: t.number, size: t.size, odds: t.odds, bet: t.bet }; }),
+        });
+        startRace();
+        var g2 = 0;
+        while (D.phase === 'race' && g2++ < 4000) update(FIXED);
+        if (r < races - 1) {
+          el.result.classList.add('hidden');
+          startNextRace();
+        }
+      }
+      if (D.race >= D.races && D.phase === 'result') showFinal();
+      var out = {
+        chips: D.chips,
+        races: D.races,
+        history: D.history,
+        auto: auto,
+        alive: D.tags.filter(function (t) { return t.alive; }).map(function (t) { return t.number; }),
+      };
+      var d = document.createElement('div');
+      d.id = 'simstats'; d.textContent = JSON.stringify(out);
+      document.body.appendChild(d);
+      document.title = 'SIM_DONE';
+      return true;
+    }
+    if (shot) {
+      var kind = shot;
+      // 培養終了まで進める
+      var guard = 0;
+      while (D.phase === 'cultivate' && guard++ < 2000) update(FIXED);
+      if (kind === 'bet') {
+        // 賭けを入れておく
+        if (D.tags.length > 1) {
+          D.chips -= 25; D.tags[0].bet = 25; D.totalBet = 25;
+          D.chips -= 10; D.tags[1].bet = 10; D.totalBet = 10;
+        }
+        buildBetPanel();
+        updateHUD();
+        render(6);
+      } else if (kind === 'race') {
+        if (D.tags.length > 1) { D.chips -= 25; D.tags[0].bet = 25; D.totalBet = 25; }
+        startRace();
+        var steps = 0;
+        while (D.phase === 'race' && D.raceTime < 11 && steps++ < 3000) update(FIXED);
+        render(8);
+      } else if (kind === 'result') {
+        if (D.tags.length > 0) { D.chips -= 25; D.tags[0].bet = 25; D.totalBet = 25; }
+        startRace();
+        var n = 0;
+        while (D.phase === 'race' && n++ < 4000) update(FIXED);
+        updateHUD();
+        render(10);
+      } else if (kind === 'final') {
+        D.chips = 210; D.history = [
+          { race: 1, winner: 2, winnerName: 'ながい群れ', winnerSize: 0, payout: 33, bets: 25, chips: 108, alive: 3 },
+          { race: 2, winner: 4, winnerName: 'まるい塊', winnerSize: 0, payout: 0, bets: 25, chips: 83, alive: 2 },
+          { race: 3, winner: 1, winnerName: '巨大な塊', winnerSize: 0, payout: 60, bets: 25, chips: 143, alive: 1 },
+        ];
+        showFinal();
+        render(10);
+      }
+      document.title = 'SHOT_READY';
+      return true;
+    }
+    return true;
+  }
+
+  /* ---------- 起動 ------------------------------------------- */
+  function boot() {
+    window.addEventListener('error', function (e) {
+      var d = document.createElement('pre');
+      d.id = 'jserr'; d.textContent = 'JSERR ' + e.message;
+      document.body.appendChild(d);
+    });
+    var params = new URLSearchParams(location.search);
+    resize();
+    bindInput();
+    el.chips.textContent = D.chips;
+    D.last = performance.now();
+    window.__derby = { D: D, startGame: startGame, trackTags: trackTags };
+    if (!setupDebug(params)) {
+      // タイトル背景用の生態系
+      D.race = 1;
+      buildWorld();
+      requestAnimationFrame(loop);
+    }
+  }
+
+  window.addEventListener('resize', resize);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
+</script>
+</body>
+</html>
