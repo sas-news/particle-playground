@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0d13">
+<title>Particle Tug</title>
+<style>
+  :root {
+    --bg: #0a0d13;
+    --panel: #111721;
+    --line: #26303f;
+    --text: #e8edf5;
+    --dim: #8a94a6;
+    --p1: #5fb3a3;
+    --p2: #e08562;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+  body {
+    color: var(--text);
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", "Meiryo", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #app { position: fixed; inset: 0; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  .hud { position: absolute; inset: 0; pointer-events: none; }
+  .hud > * { pointer-events: auto; }
+  .side {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 214px; padding: 16px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); text-align: left;
+  }
+  .side.p1 { left: 22px; }
+  .side.p2 { right: 22px; text-align: right; }
+  .side .score { font-size: 46px; }
+  .side .name { font-size: 11px; margin-bottom: 6px; }
+  .side .energy { width: 100%; height: 6px; margin-top: 10px; }
+  .side .magnet { font-size: 10px; color: var(--dim); margin-top: 8px; }
+  .side .name { font-size: 10px; letter-spacing: .12em; color: var(--dim); font-weight: 700; }
+  .side.p1 .name { color: var(--p1); }
+  .side.p2 .name { color: var(--p2); }
+  .side .score { font-size: 30px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .side .energy { height: 4px; background: #1b2330; border-radius: 2px; margin-top: 5px; overflow: hidden; width: 150px; }
+  .side.p2 .energy { margin-left: auto; }
+  .energy i { display: block; height: 100%; background: var(--p1); width: 100%; }
+  .side.p2 .energy i { background: var(--p2); margin-left: auto; }
+  .center {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    text-align: center; padding: 6px 20px 8px; border: 1px solid var(--line);
+    border-radius: 8px; background: rgba(10, 13, 19, 0.82);
+  }
+  .center .time { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .center .round { font-size: 9px; letter-spacing: .24em; color: var(--dim); }
+  .tugbar { display: flex; width: 160px; height: 3px; margin: 5px auto 0; background: #1b2330; }
+  .tugbar i { display: block; height: 100%; width: 50%; }
+  #tug-p1 { background: var(--p1); }
+  #tug-p2 { background: var(--p2); }
+
+  .bottom {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 46px;
+    display: flex; align-items: center; justify-content: center; gap: 22px;
+    padding: 0 16px; font-size: 11px; color: var(--dim);
+  }
+  .bottom b { color: var(--text); font-weight: 700; }
+  .bottom kbd {
+    display: inline-block; padding: 1px 5px; border: 1px solid var(--line);
+    border-radius: 4px; background: #131a25; font-family: inherit; font-size: 10px; color: var(--text);
+  }
+  .burst-btn {
+    position: absolute; right: 16px; bottom: 8px; width: 64px; height: 30px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+    color: var(--dim); font: inherit; font-size: 10px; cursor: pointer;
+  }
+
+  .toast {
+    position: absolute; left: 50%; top: 76px; transform: translateX(-50%);
+    padding: 6px 14px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel); font-size: 11px; color: var(--text);
+    opacity: 0; pointer-events: none; white-space: nowrap;
+  }
+  .toast.show { animation: fade 1.6s ease both; }
+  @keyframes fade { 0% { opacity: 0 } 15% { opacity: 1 } 75% { opacity: 1 } 100% { opacity: 0 } }
+
+  .screen {
+    position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center;
+    padding: 20px; overflow-y: auto; background: rgba(6, 9, 14, .90);
+  }
+  .screen.hidden { display: none; }
+  .inner { width: min(620px, 100%); text-align: left; }
+  .kicker { font-size: 10px; letter-spacing: .22em; color: var(--dim); }
+  h1 { margin: 10px 0 8px; font-size: clamp(34px, 6vw, 56px); line-height: 1.05; letter-spacing: .02em; font-weight: 800; }
+  .sub { margin: 0 0 22px; font-size: 13px; line-height: 1.7; color: var(--dim); }
+
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+  .mode {
+    padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px;
+    background: #0f141d; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  }
+  .mode b { display: block; font-size: 14px; }
+  .mode small { display: block; margin-top: 3px; font-size: 10px; color: var(--dim); }
+  .mode.on { border-color: var(--p1); }
+  .rules { font-size: 11px; line-height: 1.9; color: var(--dim); margin: 0 0 20px; }
+  .rules b { color: var(--text); }
+  .start-btn {
+    padding: 12px 38px; border: 1px solid var(--p1); border-radius: 8px;
+    background: transparent; color: var(--p1); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .start-btn:hover { background: rgba(95, 179, 163, .08); }
+  .links { margin-top: 22px; font-size: 10px; color: var(--dim); }
+  .links a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+
+  .result-inner { width: min(440px, 100%); text-align: center; }
+  .result-inner .win { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+  .result-inner .why { font-size: 11px; color: var(--dim); margin-bottom: 20px; }
+  .result-scores { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px; }
+  .result-scores div { border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .result-scores span { display: block; font-size: 10px; letter-spacing: .1em; color: var(--dim); }
+  .result-scores b { font-size: 24px; font-variant-numeric: tabular-nums; }
+  .result-scores .p1 b { color: var(--p1); }
+  .result-scores .p2 b { color: var(--p2); }
+  .result-buttons { display: flex; gap: 10px; justify-content: center; }
+  .ghost-btn {
+    padding: 11px 22px; border: 1px solid var(--line); border-radius: 8px;
+    background: transparent; color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+  }
+
+  @media (max-width: 1000px) {
+    .hud {
+      inset: 0 0 auto 0; height: 58px; display: flex; align-items: center;
+      justify-content: space-between; padding: 6px 12px;
+    }
+    .side {
+      position: static; transform: none; width: 120px; padding: 0;
+      border: 0; border-radius: 0; background: none;
+    }
+    .side .score { font-size: 22px; }
+    .side .energy { width: 100px; height: 4px; margin-top: 4px; }
+    .side .magnet { display: none; }
+    .center {
+      position: static; transform: none; padding: 0; border: 0;
+      background: none;
+    }
+    .center .time { font-size: 20px; }
+    .center .round { font-size: 8px; }
+    .tugbar { width: 110px; }
+    .bottom { font-size: 10px; gap: 10px; flex-wrap: wrap; height: 54px; }
+    .modes { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 700px) {
+    .bottom { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <div class="hud">
+    <div class="side p1">
+      <div class="name">P1</div>
+      <div class="score" id="p1-score">0</div>
+      <div class="energy"><i id="p1-energy"></i></div>
+      <div class="magnet" id="p1-magnet">—</div>
+    </div>
+    <div class="center">
+      <div class="round">PARTICLE TUG</div>
+      <div class="time" id="time">75</div>
+      <div class="tugbar"><i id="tug-p1"></i><i id="tug-p2"></i></div>
+    </div>
+    <div class="side p2">
+      <div class="name" id="p2-name">CPU</div>
+      <div class="score" id="p2-score">0</div>
+      <div class="energy"><i id="p2-energy"></i></div>
+      <div class="magnet" id="p2-magnet">—</div>
+    </div>
+  </div>
+
+  <div class="bottom" id="keys">
+    <span id="p1keys"><b>P1</b> マウス / 長押しで吸引 / <kbd>Space</kbd> バースト</span>
+    <span id="p2keys" style="display:none"><b>P2</b> 矢印 / <kbd>Shift</kbd> 吸引 / <kbd>Enter</kbd> バースト</span>
+  </div>
+  <button class="burst-btn" id="burst-btn">バースト</button>
+  <div class="toast" id="toast"></div>
+
+  <div class="screen" id="intro-screen">
+    <div class="inner">
+      <div class="kicker">PARTICLE TUG</div>
+      <h1>群れを、引っ張り合え。</h1>
+      <p class="sub">磁力で粒子を引き寄せ、自分の陣地に集める。75秒で多く集めたほうの勝ち。</p>
+
+      <div class="modes">
+        <button class="mode on" data-mode="cpu"><b>CPUと対戦</b><small>マウス / タッチ</small></button>
+        <button class="mode" data-mode="2p"><b>2人で対戦</b><small>ひとつのキーボード</small></button>
+      </div>
+
+      <p class="rules">
+        長押しで吸引、離すとエネルギー回復。胞子に触れるとしびれる。<br>
+        バーストは周囲を吹き飛ばす。陣地に粒子を留めてスコアを稼ぐ。
+      </p>
+
+      <button class="start-btn" id="start-btn">はじめる</button>
+      <div class="links">
+        <a href="index.html">← ほかのモード</a> ／
+        <a href="lab.html">Particle Lab</a> ／
+        <a href="https://cerevisiae-fii.github.io/particle-life/" target="_blank" rel="noopener">Particle Life</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="result-screen">
+    <div class="result-inner">
+      <div class="win" id="winner">P1 WIN</div>
+      <div class="why" id="why">陣地に多く集めたほうの勝ち</div>
+      <div class="result-scores">
+        <div class="p1"><span>P1</span><b id="r1-score">0</b></div>
+        <div class="p2"><span id="r2-label">CPU</span><b id="r2-score">0</b></div>
+      </div>
+      <div class="result-buttons">
+        <button class="start-btn" id="retry-btn" style="padding:10px 24px;font-size:13px">もういちど</button>
+        <button class="ghost-btn" id="title-btn">タイトルへ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==== src/sim.js ==== */
+/* ============================================================
+ * Worm Lab — Particle Life 物理コア（DOM 非依存・決定論的）
+ *  元ネタ: https://cerevisiae-fii.github.io/particle-life/ の
+ *  吸引行列モデルを、ブラウザ/Node 両方で使えるように切り出したもの。
+ *  - 座標は [0,1) のトーラス（端がつながる）
+ *  - 粒子は種類 type ごとに連続ブロックで生成（描画を軽くするため）
+ *  - クラスタ解析（ヒモ検出）もここに置き、Node テストで検証できる
+ * ============================================================ */
+(function (root, factory) {
+  var api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.WL = Object.assign(root.WL || {}, api);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  var MK = 9; // matrix の stride（種類数の上限）
+  var SIM_DEFAULTS = Object.freeze({
+    N: 3400, K: 6, rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3, dt: 0.02,
+  });
+
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function cyc(i, j, K) { return ((j - i) % K + K) % K; }
+
+  /* ---------- 行列プリセット ---------------------------------
+   * f(i,j) = 種類 i が 種類 j から受ける力（+ 引き合う / - 反発）
+   * 添字は「i の種類番号, j の種類番号, 種類数, 乱数」
+   */
+  var MATRIX_FNS = {
+    himo: function (i, j, K) {
+      if (i === j) return 0;
+      var c = cyc(i, j, K);
+      return (c === 1 || c === K - 1) ? 0.8 : -0.3;
+    },
+    whirl: function (i, j, K) {
+      return Math.sin(((j - i + K) % K) * 1.2 + 0.5) * 0.8;
+    },
+    // 元サイトの既定「循環追跡」: 1つ先を追い、1つ前から逃げる
+    chase: function (i, j, K) {
+      if (i === j) return 0.3;
+      var c = cyc(i, j, K);
+      return c === 1 ? 0.7 : (c === K - 1 ? -0.5 : 0);
+    },
+    predator: function (i, j, K) {
+      if (i === j) return 0;
+      var c = cyc(i, j, K);
+      return c === 1 ? 1 : (c === K - 1 ? -1 : 0);
+    },
+    // 完全ランダム：何が出るか分からないワクワク枠
+    wild: function (i, j, K, rng) {
+      if (i === j) return 0.35;
+      return rng() * 2 - 1;
+    },
+    // ひも状を少しずらす：ヒモっぽさを残しつつ毎回変わる
+    jitter: function (i, j, K, rng) {
+      if (i === j) return 0.1;
+      var c = cyc(i, j, K);
+      var base = (c === 1 || c === K - 1) ? 0.8 : -0.3;
+      return base + (rng() * 0.9 - 0.45);
+    },
+  };
+
+  var PRESETS = {
+    himo: {
+      id: 'himo', label: 'ひも状', emoji: '〜',
+      desc: '色が数珠つなぎになる',
+      K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'himo',
+    },
+    random: {
+      id: 'random', label: 'ランダム変異', emoji: '🌀',
+      desc: '行列をゆらして変化させる',
+      K: 6, params: { rmax: 0.05, half: 0.06, F: 0.5, beta: 0.3 }, fn: 'jitter', random: true,
+    },
+    chase: {
+      id: 'chase', label: '循環追跡', emoji: '🏃',
+      desc: '追う・逃げるの連鎖',
+      K: 6, params: { rmax: 0.055, half: 0.05, F: 0.4, beta: 0.3 }, fn: 'chase',
+    },
+    whirl: {
+      id: 'whirl', label: '渦ワルツ', emoji: '🌀',
+      desc: '渦を巻いて回る',
+      K: 6, params: { rmax: 0.06, half: 0.07, F: 0.5, beta: 0.3 }, fn: 'whirl',
+    },
+    predator: {
+      id: 'predator', label: '捕食ピラミッド', emoji: '🦈',
+      desc: '食う・食われるの連鎖',
+      K: 6, params: { rmax: 0.07, half: 0.05, F: 0.5, beta: 0.3 }, fn: 'predator',
+    },
+  };
+
+  function buildMatrix(fn, K, rng) {
+    var M = new Float32Array(K * K);
+    for (var i = 0; i < K; i++) {
+      for (var j = 0; j < K; j++) {
+        var v = fn(i, j, K, rng);
+        M[i * K + j] = Math.max(-1, Math.min(1, v));
+      }
+    }
+    return M;
+  }
+
+  /** プリセットID + シードから、実際のパラメータ一式を作る */
+  function makePreset(id, seed) {
+    var def = PRESETS[id] || PRESETS.himo;
+    var rng = mulberry32((seed >>> 0) ^ 0x9e3779b9);
+    return {
+      id: def.id,
+      label: def.label,
+      K: def.K,
+      params: {
+        rmax: def.params.rmax != null ? def.params.rmax : SIM_DEFAULTS.rmax,
+        half: def.params.half != null ? def.params.half : SIM_DEFAULTS.half,
+        F: def.params.F != null ? def.params.F : SIM_DEFAULTS.F,
+        beta: def.params.beta != null ? def.params.beta : SIM_DEFAULTS.beta,
+        dt: def.params.dt != null ? def.params.dt : SIM_DEFAULTS.dt,
+      },
+      matrix: buildMatrix(MATRIX_FNS[def.fn], def.K, rng),
+    };
+  }
+
+  /* ---------- 物理本体 ---------------------------------------- */
+  function ParticleLife(opts) {
+    opts = opts || {};
+    var o = Object.assign({}, SIM_DEFAULTS, opts);
+    this.N = o.N | 0;
+    this.K = o.K | 0;
+    this.rmax = o.rmax;
+    this.half = o.half;
+    this.F = o.F;
+    this.beta = o.beta;
+    this.dt = o.dt;
+    this.M = new Float32Array(MK * MK);
+    this.seed = o.seed >>> 0;
+    this.random = mulberry32(this.seed || 1);
+    this.time = 0;
+
+    var N = this.N;
+    this.px = new Float32Array(N);
+    this.py = new Float32Array(N);
+    this.vx = new Float32Array(N);
+    this.vy = new Float32Array(N);
+    this.type = new Uint8Array(N);
+    this.alive = new Uint8Array(N);
+
+    this.C = Math.max(3, Math.floor(1 / this.rmax));
+    var nc = this.C * this.C;
+    this.gStart = new Int32Array(nc + 1);
+    this.gPtr = new Int32Array(nc + 1);
+    this.gOrder = new Int32Array(N);
+    this.gCell = new Int32Array(N);
+    this._gridTime = -1;
+
+    // クラスタ解析用の作業領域（毎フレームのアロケーションを避ける）
+    this._ufParent = new Int32Array(N);
+    this._ufRank = new Uint8Array(N);
+    this._rootOf = new Int32Array(N);
+    this._rootStamp = new Int32Array(N);
+    this._aggSize = new Int32Array(N);
+    this._aggSx = new Float64Array(N);
+    this._aggSy = new Float64Array(N);
+    this._aggSxx = new Float64Array(N);
+    this._aggSyy = new Float64Array(N);
+    this._aggSxy = new Float64Array(N);
+    this._head = new Int32Array(N);
+    this._next = new Int32Array(N);
+    this._kd = new Float64Array(4);
+    this._kj = new Int32Array(4);
+    this._gen = 0;
+
+    if (o.matrix && o.matrix.length >= this.K * this.K) this.setMatrix(o.matrix, this.K);
+    this.reset();
+  }
+
+  ParticleLife.prototype.setMatrix = function (flat, K) {
+    if (K) this.K = K | 0;
+    this.M.fill(0);
+    for (var i = 0; i < this.K; i++) {
+      for (var j = 0; j < this.K; j++) {
+        this.M[i * MK + j] = flat[i * this.K + j] || 0;
+      }
+    }
+  };
+
+  ParticleLife.prototype.getMatrix = function () {
+    var out = new Float32Array(this.K * this.K);
+    for (var i = 0; i < this.K; i++) {
+      for (var j = 0; j < this.K; j++) out[i * this.K + j] = this.M[i * MK + j];
+    }
+    return out;
+  };
+
+  ParticleLife.prototype.reset = function () {
+    var N = this.N, K = this.K;
+    for (var i = 0; i < N; i++) {
+      this.type[i] = Math.min(K - 1, Math.floor((i * K) / N));
+      this.px[i] = this.random();
+      this.py[i] = this.random();
+      this.vx[i] = 0;
+      this.vy[i] = 0;
+      this.alive[i] = 1;
+    }
+    this.time = 0;
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.setAlive = function (i, on) {
+    this.alive[i] = on ? 1 : 0;
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.respawn = function (i) {
+    this.px[i] = this.random();
+    this.py[i] = this.random();
+    this.vx[i] = 0;
+    this.vy[i] = 0;
+    this.alive[i] = 1;
+    this._gridTime = -1;
+  };
+
+  /** 全粒子を撒き直す（世代交代の演出用） */
+  ParticleLife.prototype.scatter = function () {
+    for (var i = 0; i < this.N; i++) {
+      this.px[i] = this.random();
+      this.py[i] = this.random();
+      this.vx[i] = 0;
+      this.vy[i] = 0;
+      this.alive[i] = 1;
+    }
+    this._gridTime = -1;
+  };
+
+  ParticleLife.prototype.countAlive = function () {
+    var n = 0;
+    for (var i = 0; i < this.N; i++) n += this.alive[i];
+    return n;
+  };
+
+  ParticleLife.prototype._buildGrid = function () {
+    if (this._gridTime === this.time) return;
+    var N = this.N, C = this.C, nc = C * C;
+    var start = this.gStart, ptr = this.gPtr, order = this.gOrder, cellOf = this.gCell;
+    var px = this.px, py = this.py, alive = this.alive;
+    start.fill(0);
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) { cellOf[i] = -1; continue; }
+      var cx = (px[i] * C) | 0, cy = (py[i] * C) | 0;
+      if (cx >= C) cx = C - 1; if (cy >= C) cy = C - 1;
+      var c = cy * C + cx;
+      cellOf[i] = c;
+      start[c + 1]++;
+    }
+    for (var c = 0; c < nc; c++) start[c + 1] += start[c];
+    for (var k = 0; k < nc + 1; k++) ptr[k] = start[k];
+    for (var q = 0; q < N; q++) {
+      if (cellOf[q] >= 0) order[ptr[cellOf[q]]++] = q;
+    }
+    this._gridTime = this.time;
+  };
+
+  /** 1ステップ（元実装の step() と同じ式） */
+  ParticleLife.prototype.step = function () {
+    this._buildGrid();
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var tp = this.type, alive = this.alive, M = this.M;
+    var C = this.C, start = this.gStart, order = this.gOrder, cellOf = this.gCell;
+    var rmax = this.rmax, r2 = rmax * rmax, beta = this.beta, ib = 1 / (1 - beta);
+    var dt = this.dt, F = this.F;
+    var ff = Math.pow(0.5, dt / this.half);
+    var t, row, c, cx, cy, xi, yi, fx, fy;
+    var oy, ox, yy, cc, e, k, j, dx, dy, d2, d, r, f, s;
+
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      xi = px[i]; yi = py[i]; row = tp[i] * MK; c = cellOf[i];
+      cx = c % C; cy = (c / C) | 0;
+      fx = 0; fy = 0;
+      for (oy = -1; oy <= 1; oy++) {
+        yy = (cy + oy + C) % C;
+        for (ox = -1; ox <= 1; ox++) {
+          cc = yy * C + ((cx + ox + C) % C);
+          e = start[cc + 1];
+          for (k = start[cc]; k < e; k++) {
+            j = order[k];
+            if (j === i) continue;
+            dx = px[j] - xi; dy = py[j] - yi;
+            if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+            if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+            d2 = dx * dx + dy * dy;
+            if (d2 >= r2 || d2 < 1e-12) continue;
+            d = Math.sqrt(d2);
+            r = d / rmax;
+            f = r < beta ? r / beta - 1 : M[row + tp[j]] * (1 - Math.abs(2 * r - 1 - beta) * ib);
+            s = f / d;
+            fx += dx * s; fy += dy * s;
+          }
+        }
+      }
+      vx[i] = vx[i] * ff + fx * F * dt;
+      vy[i] = vy[i] * ff + fy * F * dt;
+      var nx = xi + vx[i] * dt, ny = yi + vy[i] * dt;
+      if (nx >= 1) nx -= 1; else if (nx < 0) nx += 1;
+      if (ny >= 1) ny -= 1; else if (ny < 0) ny += 1;
+      px[i] = nx; py[i] = ny;
+    }
+    this.time += dt;
+    this._gridTime = -1;
+  };
+
+  function wrapDelta(a) {
+    if (a > 0.5) a -= 1; else if (a < -0.5) a += 1;
+    return a;
+  }
+
+  /** 半径 R 以内の粒子を列挙（R <= rmax を想定） */
+  ParticleLife.prototype.forEachNear = function (x, y, R, fn) {
+    this._buildGrid();
+    var C = this.C, start = this.gStart, order = this.gOrder, alive = this.alive;
+    var px = this.px, py = this.py;
+    var cx = (x * C) | 0, cy = (y * C) | 0;
+    if (cx >= C) cx = C - 1; if (cy >= C) cy = C - 1;
+    var R2 = R * R;
+    var span = Math.max(1, Math.ceil(R / this.rmax));
+    for (var oy = -span; oy <= span; oy++) {
+      var yy = (cy + oy + C * 2) % C;
+      for (var ox = -span; ox <= span; ox++) {
+        var cc = yy * C + ((cx + ox + C * 2) % C);
+        var e = start[cc + 1];
+        for (var k = start[cc]; k < e; k++) {
+          var j = order[k];
+          if (!alive[j]) continue;
+          var dx = wrapDelta(px[j] - x), dy = wrapDelta(py[j] - y);
+          var d2 = dx * dx + dy * dy;
+          if (d2 <= R2) fn(j, dx, dy);
+        }
+      }
+    }
+  };
+
+  /** カーソルへの吸引（元実装の magnet 相当）。sp<0 なら全種類 */
+  ParticleLife.prototype.impulseTo = function (x, y, R, sp, strength, centerSoft) {
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var tp = this.type, alive = this.alive;
+    var soft = centerSoft || 0.015;
+    var R2 = R * R;
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      if (sp >= 0 && tp[i] !== sp) continue;
+      var dx = wrapDelta(x - px[i]), dy = wrapDelta(y - py[i]);
+      var d2 = dx * dx + dy * dy;
+      if (d2 >= R2) continue;
+      var d = Math.sqrt(d2) || 1e-6;
+      var w = strength * (1 - d / R) * Math.min(1, d / soft);
+      if (w <= 0) continue;
+      vx[i] += (dx / d) * w;
+      vy[i] += (dy / d) * w;
+    }
+  };
+
+  /** 中心から外向きに弾く（元実装の burst 相当） */
+  ParticleLife.prototype.burst = function (x, y, R, strength) {
+    var N = this.N, px = this.px, py = this.py, vx = this.vx, vy = this.vy;
+    var alive = this.alive, R2 = R * R;
+    for (var i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      var dx = wrapDelta(px[i] - x), dy = wrapDelta(py[i] - y);
+      var d2 = dx * dx + dy * dy;
+      if (d2 >= R2) continue;
+      var d = Math.sqrt(d2);
+      var w = strength * (1 - d / R);
+      if (d < 1e-5) {
+        var a = this.random() * Math.PI * 2;
+        vx[i] += Math.cos(a) * w; vy[i] += Math.sin(a) * w;
+      } else {
+        vx[i] += (dx / d) * w;
+        vy[i] += (dy / d) * w;
+      }
+    }
+  };
+
+  /** ゆるやかな海流（発散ゼロの流れ場）。ヒモを壊さずに漂わせる演出用 */
+  ParticleLife.prototype.applyFlow = function (amp, t, phase) {
+    if (!amp) return;
+    var kx = 2 * Math.PI * 1.3, ky = 2 * Math.PI * 0.9, om = 0.35;
+    var ph = phase || 0;
+    for (var i = 0; i < this.N; i++) {
+      if (!this.alive[i]) continue;
+      var x = this.px[i], y = this.py[i];
+      this.vx[i] += amp * ky * Math.cos(ky * y + ph) * Math.sin(kx * x + om * t + ph) * 0.02;
+      this.vy[i] += -amp * kx * Math.cos(kx * x + om * t + ph) * Math.sin(ky * y + ph) * 0.02;
+    }
+  };
+
+  ParticleLife.prototype.meanSpeed = function () {
+    var s = 0, n = 0;
+    for (var i = 0; i < this.N; i++) {
+      if (!this.alive[i]) continue;
+      s += Math.hypot(this.vx[i], this.vy[i]);
+      n++;
+    }
+    return n ? s / n : 0;
+  };
+
+  /* ---------- クラスタ解析（ヒモ検出） ------------------------
+   * 各粒子を「近い順に K 個」の近傍とつないだグラフの連結成分を「個体」とみなす。
+   * 半径しきい値方式より、ヒモの切れ目・絡まり・密度ムラに強い。
+   * 主成分分析で細長さ（elongation）を出し、ヒモかカタマリかを判定する。
+   */
+  ParticleLife.prototype.clusters = function (opts) {
+    opts = opts || {};
+    var kLink = opts.k != null ? opts.k : 2;
+    var maxR = opts.maxR != null ? opts.maxR : this.rmax * 0.7;
+    var minSize = opts.minSize != null ? opts.minSize : 8;
+    var wormElong = opts.wormElong != null ? opts.wormElong : 2.0;
+    var radiusLink = opts.linkR; // 半径方式にしたいとき
+    this._buildGrid();
+
+    var N = this.N, alive = this.alive, px = this.px, py = this.py;
+    var C = this.C, start = this.gStart, order = this.gOrder, cellOf = this.gCell;
+    var parent = this._ufParent, rank = this._ufRank;
+    var i, j, c, cx, cy, oy, ox, yy, cc, e, dx, dy, d2;
+    var kd = this._kd, kj = this._kj;
+    var maxR2 = maxR * maxR;
+    var link2 = radiusLink != null ? radiusLink * radiusLink : 0;
+
+    for (i = 0; i < N; i++) { parent[i] = alive[i] ? i : -1; rank[i] = 0; }
+
+    function find(x) {
+      while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+      return x;
+    }
+    function unite(a, b) {
+      a = find(a); b = find(b);
+      if (a === b) return;
+      if (rank[a] < rank[b]) parent[a] = b;
+      else if (rank[a] > rank[b]) parent[b] = a;
+      else { parent[b] = a; rank[a]++; }
+    }
+
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      c = cellOf[i];
+      cx = c % C; cy = (c / C) | 0;
+      var xi = px[i], yi = py[i];
+      if (radiusLink != null) {
+        for (oy = -1; oy <= 1; oy++) {
+          yy = (cy + oy + C) % C;
+          for (ox = -1; ox <= 1; ox++) {
+            cc = yy * C + ((cx + ox + C) % C);
+            e = start[cc + 1];
+            for (var kk = start[cc]; kk < e; kk++) {
+              j = order[kk];
+              if (j <= i) continue;
+              dx = px[j] - xi; dy = py[j] - yi;
+              if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+              if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+              d2 = dx * dx + dy * dy;
+              if (d2 < link2) unite(i, j);
+            }
+          }
+        }
+        continue;
+      }
+      // 近傍 k 個を距離順に保持
+      kd[0] = Infinity; kd[1] = Infinity; kd[2] = Infinity;
+      kj[0] = -1; kj[1] = -1; kj[2] = -1;
+      for (oy = -1; oy <= 1; oy++) {
+        yy = (cy + oy + C) % C;
+        for (ox = -1; ox <= 1; ox++) {
+          cc = yy * C + ((cx + ox + C) % C);
+          e = start[cc + 1];
+          for (var k2 = start[cc]; k2 < e; k2++) {
+            j = order[k2];
+            if (j === i) continue;
+            dx = px[j] - xi; dy = py[j] - yi;
+            if (dx > 0.5) dx -= 1; else if (dx < -0.5) dx += 1;
+            if (dy > 0.5) dy -= 1; else if (dy < -0.5) dy += 1;
+            d2 = dx * dx + dy * dy;
+            if (d2 >= maxR2 || d2 <= 0) continue;
+            var pos = -1;
+            for (var q = 0; q < kLink; q++) { if (d2 < kd[q]) { pos = q; break; } }
+            if (pos < 0) continue;
+            for (q = kLink - 1; q > pos; q--) { kd[q] = kd[q - 1]; kj[q] = kj[q - 1]; }
+            kd[pos] = d2; kj[pos] = j;
+          }
+        }
+      }
+      for (var q2 = 0; q2 < kLink; q2++) if (kj[q2] >= 0) unite(i, kj[q2]);
+    }
+
+    // 根を集める
+    var gen = ++this._gen;
+    var stamp = this._rootStamp, rootOf = this._rootOf;
+    var roots = [];
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      var r = find(i);
+      rootOf[i] = r;
+      if (stamp[r] !== gen) { stamp[r] = gen; roots.push(r); }
+    }
+
+    // 集計領域を初期化
+    var aggSize = this._aggSize, aggSx = this._aggSx, aggSy = this._aggSy;
+    var aggSxx = this._aggSxx, aggSyy = this._aggSyy, aggSxy = this._aggSxy;
+    var head = this._head, next = this._next;
+    for (var ri = 0; ri < roots.length; ri++) {
+      var rr = roots[ri];
+      aggSize[rr] = 0; aggSx[rr] = 0; aggSy[rr] = 0;
+      aggSxx[rr] = 0; aggSyy[rr] = 0; aggSxy[rr] = 0;
+      head[rr] = -1;
+    }
+    for (i = 0; i < N; i++) {
+      if (!alive[i]) continue;
+      r = rootOf[i];
+      next[i] = head[r];
+      head[r] = i;
+      var x = px[i], y = py[i];
+      aggSize[r]++;
+      aggSx[r] += x; aggSy[r] += y;
+      aggSxx[r] += x * x; aggSyy[r] += y * y; aggSxy[r] += x * y;
+    }
+
+    var out = [];
+    for (ri = 0; ri < roots.length; ri++) {
+      r = roots[ri];
+      var size = aggSize[r];
+      if (size < minSize) continue;
+      var inv = 1 / size;
+      var mx = aggSx[r] * inv, my = aggSy[r] * inv;
+      var varX = Math.max(0, aggSxx[r] * inv - mx * mx);
+      var varY = Math.max(0, aggSyy[r] * inv - my * my);
+      var cov = aggSxy[r] * inv - mx * my;
+      var tr = varX + varY;
+      var disc = Math.sqrt(Math.max(0, (tr * tr) / 4 - (varX * varY - cov * cov)));
+      var l1 = tr / 2 + disc, l2 = Math.max(tr / 2 - disc, 1e-10);
+      var elong = Math.sqrt(l1 / l2);
+
+      var members = new Array(size);
+      var species = new Int32Array(this.K);
+      var m = head[r], mi = 0;
+      while (m !== -1) {
+        members[mi++] = m;
+        species[this.type[m]]++;
+        m = next[m];
+      }
+      var dom = 0;
+      for (var s = 1; s < this.K; s++) if (species[s] > species[dom]) dom = s;
+      var speciesCount = 0;
+      for (var s2 = 0; s2 < this.K; s2++) if (species[s2] > 0) speciesCount++;
+
+      out.push({
+        size: size,
+        cx: mx, cy: my,
+        varX: varX, varY: varY, cov: cov,
+        rx: 2.0 * Math.sqrt(l1) + 0.004,
+        ry: 2.0 * Math.sqrt(l2) + 0.004,
+        angle: 0.5 * Math.atan2(2 * cov, varX - varY),
+        elongation: elong,
+        isWorm: size >= 10 && elong >= wormElong,
+        dominant: dom,
+        species: species,
+        speciesCount: speciesCount,
+        members: members,
+      });
+    }
+    out.sort(function (a, b) { return b.size - a.size; });
+    if (out.length > 160) out.length = 160;
+    return out;
+  };
+
+  /** 捕獲したときの見た目用スコア（ゲーム側で倍率をかける） */
+  function specimenValue(c) {
+    var base = 6 + c.size * 1.1;
+    if (c.isWorm) base += 14 + Math.min(c.elongation, 10) * 2.2;
+    base += (c.speciesCount - 1) * 5;
+    return Math.round(base);
+  }
+
+  return {
+    MK: MK,
+    SIM_DEFAULTS: SIM_DEFAULTS,
+    PRESETS: PRESETS,
+    MATRIX_FNS: MATRIX_FNS,
+    mulberry32: mulberry32,
+    makePreset: makePreset,
+    buildMatrix: buildMatrix,
+    ParticleLife: ParticleLife,
+    specimenValue: specimenValue,
+    wrapDelta: wrapDelta,
+  };
+});
+
+</script>
+<script>
+/* ==== src/tug.js ==== */
+/* ============================================================
+ * Particle Tug — 磁力で群れを引っ張り合う
+ *
+ *  ・プレイヤーが操作するのは「磁場」で、生き物ではない
+ *  ・左右の陣地に粒子を留めた時間がスコア
+ *  ・長押しで吸引、離すとエネルギー回復
+ *  ・胞子に触れるとしびれる
+ *  ・1人 vs CPU / 2人対戦
+ * ============================================================ */
+(function () {
+  'use strict';
+
+  var WL = window.WL;
+  if (!WL) return;
+  var ParticleLife = WL.ParticleLife;
+  var makePreset = WL.makePreset;
+
+  var SPECIES = [
+    [214, 196, 120], [106, 168, 170], [196, 138, 110],
+    [139, 170, 142], [148, 143, 165], [231, 205, 160],
+  ];
+  var P_COLORS = [[86, 156, 255], [255, 107, 107]];
+  var P_NAMES = ['P1', 'P2'];
+
+  var T = {
+    roundTime: 75,
+    N: 2800,
+    zone: 0.16,
+    magnetR: 0.16,
+    magnet: 0.34,
+    drain: 9,
+    regen: 7,
+    burstCost: 16,
+    burstR: 0.18,
+    stun: 1.1,
+    sporePenalty: 18,
+    cpuSpeed: 0.34,
+    cpuMagnet: 0.9,
+  };
+  var FIXED = 1 / 60;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('cv');
+  var ctx = canvas.getContext('2d');
+  var el = {
+    p1score: $('p1-score'), p2score: $('p2-score'), time: $('time'),
+    p1energy: $('p1-energy'), p2energy: $('p2-energy'), p2name: $('p2-name'),
+    tugP1: $('tug-p1'), tugP2: $('tug-p2'),
+    toast: $('toast'), intro: $('intro-screen'), result: $('result-screen'),
+    winner: $('winner'), why: $('why'), r1: $('r1-score'), r2: $('r2-score'), r2label: $('r2-label'),
+    keys: $('keys'), p2keys: $('p2keys'),
+  };
+
+  var W = 0, H = 0, S = 0, OX = 0, OY = 0, dpr = 1;
+  var bgCanvas = document.createElement('canvas');
+  var bgCtx = bgCanvas.getContext('2d');
+
+  var state = {
+    mode: 'intro', menuMode: 'cpu', demo: false,
+    sim: null, players: [], spores: [], zoneCounts: [0, 0],
+    timeLeft: T.roundTime, time: 0,
+    pointer: { x: 0.5, y: 0.5, down: false, active: false },
+    keys: {},
+    effects: [], scoreTick: 0,
+    acc: 0, last: 0, shake: 0, resultTimer: 0,
+    seed: 1, rounds: 0,
+  };
+
+  /* ---------- レイアウト ------------------------------------- */
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    bgCanvas.width = canvas.width; bgCanvas.height = canvas.height;
+    if (W >= 1000) {
+      // 左右の余白にスコア、中央に盤面
+      var sideSpace = 2 * (22 + 214 + 10);
+      S = Math.max(260, Math.min(W - sideSpace, H - 24));
+      OX = (W - S) / 2;
+      OY = (H - S) / 2;
+    } else {
+      var top = 58, bottom = 54;
+      S = Math.max(240, Math.min(W - 20, H - top - bottom - 10));
+      OX = (W - S) / 2;
+      OY = top + Math.max(2, (H - top - bottom - S) / 2);
+    }
+    buildBackground();
+  }
+
+  function buildBackground() {
+    var w = bgCanvas.width, h = bgCanvas.height;
+    bgCtx.setTransform(1, 0, 0, 1, 0, 0);
+    bgCtx.fillStyle = '#0a0d13';
+    bgCtx.fillRect(0, 0, w, h);
+  }
+
+  /* ---------- ワールド --------------------------------------- */
+  function makeWorld(seed) {
+    var preset = makePreset('himo', seed);
+    var sim = new ParticleLife({
+      N: T.N, K: preset.K, seed: seed,
+      rmax: preset.params.rmax, half: preset.params.half,
+      F: preset.params.F, beta: preset.params.beta, dt: preset.params.dt,
+      matrix: preset.matrix,
+    });
+    // 初期配置を少し散らす
+    for (var i = 0; i < 240; i++) sim.step();
+    return sim;
+  }
+
+  function makePlayer(id, isCPU) {
+    return {
+      id: id, isCPU: !!isCPU,
+      x: id === 0 ? 0.22 : 0.78,
+      y: 0.5,
+      magnet: false,
+      energy: 100,
+      score: 0,
+      stun: 0,
+      burstCd: 0,
+      ai: { t: 0, x: id === 0 ? 0.2 : 0.8, y: 0.5 },
+    };
+  }
+
+  function startRound(seedOverride) {
+    state.seed = seedOverride != null ? seedOverride : ((Math.random() * 1e9) >>> 0);
+    state.sim = makeWorld(state.seed);
+    state.players = [makePlayer(0, false), makePlayer(1, state.menuMode === 'cpu')];
+    state.time = 0; state.timeLeft = T.roundTime;
+    state.spores = [];
+    state.effects = [];
+    state.time = 0; state.scoreTick = 0; state.shake = 0;
+    state.pointer.down = false; state.pointer.active = false;
+    state.keys = {};
+    state.mode = 'play';
+    for (var i = 0; i < 3; i++) spawnSpore(true);
+    el.intro.classList.add('hidden');
+    el.result.classList.add('hidden');
+    el.p2name.textContent = state.menuMode === 'cpu' ? 'CPU' : 'P2';
+    el.r2label.textContent = state.menuMode === 'cpu' ? 'CPU' : 'P2';
+    el.p2keys.style.display = state.menuMode === 'cpu' ? 'none' : '';
+    var p1keys = document.getElementById('p1keys');
+    if (p1keys) {
+      p1keys.innerHTML = state.menuMode === 'cpu'
+        ? '<b>P1</b> マウス / 長押しで吸引 / <kbd>Space</kbd> バースト'
+        : '<b>P1</b> <kbd>WASD</kbd> / <kbd>Space</kbd> 吸引 / <kbd>E</kbd> バースト';
+    }
+    updateHUD();
+  }
+
+  /* ---------- 胞子 ------------------------------------------- */
+  function spawnSpore(avoidCenter) {
+    var x, y;
+    for (var t = 0; t < 12; t++) {
+      x = 0.1 + Math.random() * 0.8;
+      y = 0.1 + Math.random() * 0.8;
+      if (avoidCenter && Math.hypot(x - 0.5, y - 0.5) < 0.25) continue;
+      break;
+    }
+    var a = Math.random() * Math.PI * 2, sp = 0.012 + Math.random() * 0.012;
+    state.spores.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, phase: Math.random() * 6.28, dead: false, respawnAt: 0 });
+  }
+
+  /* ---------- 入力 ------------------------------------------- */
+  function normPointer(e) {
+    var r = canvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (e.clientX - r.left - OX) / S)),
+      y: Math.max(0, Math.min(1, (e.clientY - r.top - OY) / S)),
+    };
+  }
+
+  function bindInput() {
+    canvas.addEventListener('pointermove', function (e) {
+      var p = normPointer(e);
+      state.pointer.x = p.x; state.pointer.y = p.y;
+      state.pointer.active = true;
+    });
+    canvas.addEventListener('pointerdown', function (e) {
+      var p = normPointer(e);
+      state.pointer.x = p.x; state.pointer.y = p.y;
+      state.pointer.active = true;
+      state.pointer.down = true;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
+    });
+    window.addEventListener('pointerup', function () { state.pointer.down = false; });
+    window.addEventListener('blur', function () { state.pointer.down = false; state.keys = {}; });
+
+    window.addEventListener('keydown', function (e) {
+      if (['Space', 'Enter', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(e.code) >= 0) e.preventDefault();
+      state.keys[e.code] = true;
+      if (state.mode !== 'play') return;
+      if (state.menuMode === 'cpu') {
+        if (e.code === 'Space') burst(0);
+      } else {
+        if (e.code === 'KeyE') burst(0);
+        if (e.code === 'Enter') burst(1);
+      }
+    });
+    window.addEventListener('keyup', function (e) { state.keys[e.code] = false; });
+
+    $('start-btn').addEventListener('click', function () { startRound(); });
+    $('retry-btn').addEventListener('click', function () { startRound(); });
+    $('title-btn').addEventListener('click', goTitle);
+    $('burst-btn').addEventListener('click', function () { if (state.mode === 'play') burst(0); });
+    var modes = document.querySelectorAll('.mode');
+    for (var i = 0; i < modes.length; i++) {
+      modes[i].addEventListener('click', function () {
+        state.menuMode = this.dataset.mode;
+        for (var j = 0; j < modes.length; j++) modes[j].classList.toggle('on', modes[j] === this);
+        el.p2keys.style.display = state.menuMode === 'cpu' ? 'none' : '';
+      });
+    }
+  }
+
+  function goTitle() {
+    state.mode = 'intro';
+    state.sim = makeWorld((Math.random() * 1e9) >>> 0);
+    state.players = [makePlayer(0, false), makePlayer(1, true)];
+    state.spores = []; spawnSpore(false); spawnSpore(false);
+    el.intro.classList.remove('hidden');
+    el.result.classList.add('hidden');
+  }
+
+  function burst(id) {
+    var p = state.players[id];
+    if (!p || p.stun > 0 || p.burstCd > 0 || p.energy < T.burstCost) return;
+    p.energy -= T.burstCost;
+    p.burstCd = 0.45;
+    state.sim.burst(p.x, p.y, T.burstR, 1.1);
+    addRing(p.x, p.y, 0.01, T.burstR, 0.4);
+    state.shake = Math.max(state.shake, 5);
+  }
+
+  /* ---------- 更新 ------------------------------------------- */
+  function update(dt) {
+    var sim = state.sim;
+    if (!sim) return;
+    state.time += dt;
+    state.timeLeft -= dt;
+    state.scoreTick += dt;
+
+    sim.step();
+
+    // プレイヤー入力
+    var p1 = state.players[0], p2 = state.players[1];
+    if (p1.isCPU) updateCPU(p1, dt); else updateP1(p1, dt);
+    if (p2.isCPU) updateCPU(p2, dt); else updateP2(p2, dt);
+
+    // 磁力
+    applyMagnet(p1, dt);
+    applyMagnet(p2, dt);
+
+    // 胞子
+    updateSpores(dt);
+
+    // スコア
+    if (state.scoreTick >= 0.1) {
+      var counts = countZones();
+      p1.score += counts[0] * 0.003;
+      p2.score += counts[1] * 0.003;
+      state.scoreTick = 0;
+    }
+
+    // エフェクト
+    for (var i = state.effects.length - 1; i >= 0; i--) {
+      var e = state.effects[i];
+      e.t += dt;
+      if (e.t > e.dur) state.effects.splice(i, 1);
+    }
+    state.shake = Math.max(0, state.shake - dt * 20);
+
+    updateHUD();
+    if (state.timeLeft <= 0) endRound();
+  }
+
+  function updateP1(p, dt) {
+    if (state.menuMode === '2p') {
+      var k = state.keys;
+      var ix = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
+      var iy = (k.KeyS ? 1 : 0) - (k.KeyW ? 1 : 0);
+      if (ix || iy) {
+        var l = Math.hypot(ix, iy) || 1;
+        p.x += ix / l * 0.45 * dt;
+        p.y += iy / l * 0.45 * dt;
+      }
+      p.magnet = !!k.Space && p.stun <= 0;
+    } else {
+      if (state.pointer.active) {
+        p.x += (state.pointer.x - p.x) * Math.min(1, dt * 18);
+        p.y += (state.pointer.y - p.y) * Math.min(1, dt * 18);
+      }
+      p.magnet = state.pointer.down && p.stun <= 0;
+    }
+    clampPlayer(p);
+  }
+
+  function updateP2(p, dt) {
+    var k = state.keys;
+    var ix = (k.ArrowRight ? 1 : 0) - (k.ArrowLeft ? 1 : 0);
+    var iy = (k.ArrowDown ? 1 : 0) - (k.ArrowUp ? 1 : 0);
+    if (ix || iy) {
+      var l = Math.hypot(ix, iy) || 1;
+      p.x += ix / l * 0.45 * dt;
+      p.y += iy / l * 0.45 * dt;
+    }
+    p.magnet = !!k.ShiftLeft && p.stun <= 0;
+    clampPlayer(p);
+  }
+
+  function updateCPU(p, dt) {
+    var ai = p.ai;
+    ai.t -= dt;
+    if (ai.t <= 0) {
+      ai.t = 0.35;
+      var ownEdge = p.id === 0 ? 0.17 : 0.83;
+      // 3秒ごとに「自陣で受ける」と「中央へ取りに行く」を切り替える
+      ai.phase = ai.phase || 'home';
+      ai.phaseT = (ai.phaseT || 0) - 0.35;
+      if (ai.phaseT <= 0) {
+        ai.phase = ai.phase === 'home' ? 'fetch' : 'home';
+        ai.phaseT = ai.phase === 'fetch' ? 1.8 : 3.0;
+      }
+      var targetX = ai.phase === 'fetch'
+        ? (p.id === 0 ? 0.36 : 0.64)
+        : ownEdge;
+      var bestY = p.y, best = -1;
+      for (var s = 0; s < 6; s++) {
+        var y = 0.15 + s * 0.14;
+        var c = 0;
+        for (var i = 0; i < 500; i++) {
+          var idx = (Math.random() * state.sim.N) | 0;
+          if (!state.sim.alive[idx]) continue;
+          var dx = state.sim.px[idx] - targetX;
+          var dy = state.sim.py[idx] - y;
+          if (Math.abs(dx) < 0.18 && Math.abs(dy) < 0.1) c++;
+        }
+        if (c > best) { best = c; bestY = y; }
+      }
+      ai.x = targetX;
+      ai.y = bestY;
+    }
+    var dx = ai.x - p.x, dy = ai.y - p.y;
+    var d = Math.hypot(dx, dy);
+    if (d > 0.01) {
+      var step = Math.min(d, T.cpuSpeed * dt);
+      p.x += dx / d * step;
+      p.y += dy / d * step;
+    }
+    p.magnet = p.energy > 22 && p.stun <= 0;
+    if (p.energy < 8) p.magnet = false;
+    clampPlayer(p);
+  }
+
+  function clampPlayer(p) {
+    p.x = Math.max(0.04, Math.min(0.96, p.x));
+    p.y = Math.max(0.06, Math.min(0.94, p.y));
+  }
+
+  function applyMagnet(p, dt) {
+    if (p.stun > 0) p.stun -= dt;
+    if (p.burstCd > 0) p.burstCd -= dt;
+    if (p.magnet && p.energy > 0) {
+      state.sim.impulseTo(p.x, p.y, T.magnetR, -1, T.magnet, 0.02);
+      p.energy = Math.max(0, p.energy - T.drain * dt);
+    } else {
+      p.energy = Math.min(100, p.energy + T.regen * dt);
+    }
+  }
+
+  function countZones() {
+    var n1 = 0, n2 = 0;
+    var sim = state.sim;
+    for (var i = 0; i < sim.N; i++) {
+      if (!sim.alive[i]) continue;
+      if (sim.px[i] < T.zone) n1++;
+      else if (sim.px[i] > 1 - T.zone) n2++;
+    }
+    state.zoneCounts = [n1, n2];
+    return [n1, n2];
+  }
+
+  function updateSpores(dt) {
+    for (var i = 0; i < state.spores.length; i++) {
+      var s = state.spores[i];
+      if (s.dead) {
+        if (state.time > s.respawnAt) {
+          s.dead = false;
+          s.x = 0.1 + Math.random() * 0.8;
+          s.y = 0.1 + Math.random() * 0.8;
+          s.vx = (Math.random() - 0.5) * 0.02;
+          s.vy = (Math.random() - 0.5) * 0.02;
+        } else continue;
+      }
+      s.phase += dt;
+      s.vx += (Math.random() - 0.5) * 0.003;
+      s.vy += (Math.random() - 0.5) * 0.003;
+      var sp = Math.hypot(s.vx, s.vy);
+      if (sp > 0.03) { s.vx *= 0.03 / sp; s.vy *= 0.03 / sp; }
+      s.x += s.vx * dt; s.y += s.vy * dt;
+      if (s.x < 0.03) { s.x = 0.03; s.vx = Math.abs(s.vx); }
+      if (s.x > 0.97) { s.x = 0.97; s.vx = -Math.abs(s.vx); }
+      if (s.y < 0.03) { s.y = 0.03; s.vy = Math.abs(s.vy); }
+      if (s.y > 0.97) { s.y = 0.97; s.vy = -Math.abs(s.vy); }
+      state.sim.burst(s.x, s.y, 0.06, 0.008);
+
+      for (var pi = 0; pi < state.players.length; pi++) {
+        var p = state.players[pi];
+        if (p.stun > 0) continue;
+        if (Math.hypot(p.x - s.x, p.y - s.y) < 0.035) {
+          p.stun = T.stun;
+          p.energy = Math.max(0, p.energy - T.sporePenalty);
+          s.dead = true; s.respawnAt = state.time + 7;
+          addRing(s.x, s.y, 0.01, 0.1, 0.4);
+          toast('胞子');
+          state.shake = Math.max(state.shake, 6);
+        }
+      }
+    }
+  }
+
+  function endRound() {
+    state.mode = 'result';
+    var a = state.players[0], b = state.players[1];
+    el.winner.textContent = a.score > b.score ? 'P1 WIN' : (b.score > a.score ? (b.isCPU ? 'CPU WIN' : 'P2 WIN') : 'DRAW');
+    el.why.textContent = '陣地に多く集めたほうの勝ち';
+    el.r1.textContent = Math.round(a.score);
+    el.r2.textContent = Math.round(b.score);
+    el.result.classList.remove('hidden');
+  }
+
+  /* ---------- 効果 ------------------------------------------- */
+  function addRing(x, y, r0, r1, dur) {
+    state.effects.push({ x: x, y: y, r0: r0, r1: r1, t: 0, dur: dur || 0.4 });
+  }
+  function toast(text) {
+    el.toast.textContent = text;
+    el.toast.classList.remove('show');
+    void el.toast.offsetWidth;
+    el.toast.classList.add('show');
+  }
+
+  /* ---------- 描画 ------------------------------------------- */
+  function render(now) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+    ctx.save();
+    var sx = 0, sy = 0;
+    if (state.shake > 0.2) { sx = (Math.random() - 0.5) * state.shake; sy = (Math.random() - 0.5) * state.shake; }
+    ctx.translate(sx, sy);
+
+    // 盤面
+    ctx.fillStyle = '#0d1119';
+    ctx.fillRect(OX, OY, S, S);
+    ctx.strokeStyle = '#1d2532';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(OX + 0.5, OY + 0.5, S - 1, S - 1);
+    ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+    for (var g = 1; g < 8; g++) {
+      var gx = OX + S * g / 8;
+      var gy = OY + S * g / 8;
+      ctx.beginPath(); ctx.moveTo(gx + 0.5, OY); ctx.lineTo(gx + 0.5, OY + S); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(OX, gy + 0.5); ctx.lineTo(OX + S, gy + 0.5); ctx.stroke();
+    }
+
+    // 陣地
+    drawZone(0, '#5a9cff');
+    drawZone(1, '#ff6b6b');
+
+    // 粒子
+    drawParticles();
+
+    // 胞子
+    drawSpores(now);
+
+    // 効果
+    for (var i = 0; i < state.effects.length; i++) {
+      var e = state.effects[i];
+      var k = e.t / e.dur;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 * (1 - k)).toFixed(2) + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(OX + e.x * S, OY + e.y * S, (e.r0 + (e.r1 - e.r0) * k) * S, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // カーソル
+    drawCursor(state.players[0], 0);
+    if (state.players[1]) drawCursor(state.players[1], 1);
+
+    ctx.restore();
+    void now;
+  }
+
+  function drawZone(id, color) {
+    var x = id === 0 ? OX : OX + S * (1 - T.zone);
+    ctx.fillStyle = color + '12';
+    ctx.fillRect(x, OY, S * T.zone, S);
+    ctx.strokeStyle = color + '66';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    var ex = id === 0 ? OX + S * T.zone : OX + S * (1 - T.zone);
+    ctx.moveTo(ex + 0.5, OY);
+    ctx.lineTo(ex + 0.5, OY + S);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color + 'cc';
+    ctx.font = '700 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(id === 0 ? 'P1' : (state.players[1] && state.players[1].isCPU ? 'CPU' : 'P2'), x + S * T.zone / 2, OY + 8);
+    ctx.fillStyle = color + 'aa';
+    ctx.font = '600 10px system-ui, sans-serif';
+    ctx.fillText((state.zoneCounts[id] || 0) + '粒', x + S * T.zone / 2, OY + 23);
+  }
+
+  function drawParticles() {
+    var sim = state.sim;
+    if (!sim) return;
+    var r = Math.max(2.0, Math.min(3.3, S * 0.0038));
+    for (var t = 0; t < sim.K; t++) {
+      var c = SPECIES[t % SPECIES.length];
+      var s0 = Math.floor(t * sim.N / sim.K);
+      var s1 = Math.floor((t + 1) * sim.N / sim.K);
+      ctx.beginPath();
+      for (var i = s0; i < s1; i++) {
+        if (!sim.alive[i]) continue;
+        var x = OX + sim.px[i] * S;
+        var y = OY + sim.py[i] * S;
+        ctx.moveTo(x + r, y);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+      }
+      ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.38)';
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
+    }
+  }
+
+  function drawSpores(now) {
+    for (var i = 0; i < state.spores.length; i++) {
+      var s = state.spores[i];
+      if (s.dead) continue;
+      var x = OX + s.x * S, y = OY + s.y * S;
+      var r = S * 0.022;
+      ctx.beginPath();
+      for (var k = 0; k < 12; k++) {
+        var a = k / 12 * Math.PI * 2 + now * 0.6;
+        var rr = k % 2 === 0 ? r : r * 0.55;
+        if (k === 0) ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+        else ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#2a1a24';
+      ctx.fill();
+      ctx.strokeStyle = '#d084a4';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+  }
+
+  function drawCursor(p, id) {
+    if (!p) return;
+    var x = OX + p.x * S, y = OY + p.y * S;
+    var color = id === 0 ? '#5a9cff' : '#ff6b6b';
+    if (p.magnet && p.energy > 0) {
+      ctx.strokeStyle = color + '22';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, T.magnetR * S, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = p.stun > 0 ? '#b06a86' : color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 16, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    if (p.stun > 0) {
+      ctx.font = '700 10px system-ui, sans-serif';
+      ctx.fillStyle = '#b06a86';
+      ctx.textAlign = 'center';
+      ctx.fillText('しびれ', x, y - 24);
+    }
+  }
+
+  /* ---------- HUD -------------------------------------------- */
+  function updateHUD() {
+    if (!state.players.length) return;
+    var a = state.players[0], b = state.players[1];
+    el.p1score.textContent = Math.round(a.score);
+    el.p2score.textContent = Math.round(b.score);
+    el.p1energy.style.width = a.energy + '%';
+    el.p2energy.style.width = b.energy + '%';
+    var total = a.score + b.score;
+    var share = total > 0 ? a.score / total : 0.5;
+    el.tugP1.style.width = (share * 100).toFixed(1) + '%';
+    el.tugP2.style.width = ((1 - share) * 100).toFixed(1) + '%';
+    var m1 = document.getElementById('p1-magnet'), m2 = document.getElementById('p2-magnet');
+    if (m1) m1.textContent = a.stun > 0 ? 'しびれ' : (a.magnet ? '吸引中' : '待機');
+    if (m2) m2.textContent = b.stun > 0 ? 'しびれ' : (b.magnet ? '吸引中' : '待機');
+    el.time.textContent = Math.max(0, Math.ceil(state.timeLeft));
+  }
+
+  /* ---------- ループ ----------------------------------------- */
+  function loop(now) {
+    var dt = Math.min(0.05, (now - state.last) / 1000);
+    state.last = now;
+    if (state.mode === 'play') {
+      state.acc += dt;
+      var steps = 0;
+      while (state.acc >= FIXED && steps < 3) {
+        update(FIXED);
+        state.acc -= FIXED;
+        steps++;
+        if (state.mode !== 'play') break;
+      }
+      if (steps >= 3) state.acc = 0;
+    }
+    render(now / 1000);
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- デバッグ --------------------------------------- */
+  function setupDebug(params) {
+    var shot = params.get('shot');
+    var simulate = params.get('simulate');
+    if (!shot && !simulate) return false;
+    state.menuMode = params.get('mode') || 'cpu';
+    startRound(parseInt(params.get('seed') || '7', 10));
+    state.demo = true;
+    if (simulate) {
+      var secs = Math.max(5, Math.min(120, parseFloat(params.get('seconds') || '75')));
+      var total = Math.round(secs * 60) + 3;
+      for (var f = 0; f < total; f++) {
+        state.players[0].isCPU = true;
+        if (state.menuMode === '2p') state.players[1].isCPU = true;
+        update(FIXED);
+        if (state.mode !== 'play') break;
+      }
+      var out = {
+        mode: state.menuMode, ended: state.mode,
+        a: Math.round(state.players[0].score),
+        b: Math.round(state.players[1].score),
+        p1: { x: +state.players[0].x.toFixed(2), y: +state.players[0].y.toFixed(2) },
+        p2: { x: +state.players[1].x.toFixed(2), y: +state.players[1].y.toFixed(2) },
+      };
+      var d = document.createElement('div');
+      d.id = 'simstats';
+      d.textContent = JSON.stringify(out);
+      document.body.appendChild(d);
+      document.title = 'SIM_DONE';
+      return true;
+    }
+    // ショット用に状態を整える
+    var secs2 = 20;
+    for (var f2 = 0; f2 < secs2 * 60; f2++) {
+      state.players[0].isCPU = true;
+      update(FIXED);
+    }
+    state.timeLeft = 41;
+    state.players[0].score = 1840;
+    state.players[1].score = 1520;
+    state.players[0].energy = 62;
+    state.players[1].energy = 78;
+    state.players[0].isCPU = false;
+    state.players[1].isCPU = state.menuMode === 'cpu';
+    updateHUD();
+    render(8);
+    document.title = 'SHOT_READY';
+    return true;
+  }
+
+  /* ---------- 起動 ------------------------------------------- */
+  function boot() {
+    window.addEventListener('error', function (e) {
+      var d = document.createElement('pre');
+      d.id = 'jserr'; d.textContent = 'JSERR ' + e.message;
+      document.body.appendChild(d);
+    });
+    var params = new URLSearchParams(location.search);
+    resize();
+    bindInput();
+    state.sim = makeWorld(7);
+    state.players = [makePlayer(0, false), makePlayer(1, true)];
+    state.spores = []; spawnSpore(false); spawnSpore(false);
+    state.last = performance.now();
+    window.__tug = { state: state, T: T, startRound: startRound };
+    if (!setupDebug(params)) requestAnimationFrame(loop);
+  }
+
+  window.addEventListener('resize', resize);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
+</script>
+</body>
+</html>

@@ -833,9 +833,9 @@
   var mulberry32 = WL.mulberry32;
 
   var COLORS = [
-    [110, 242, 192], [255, 209, 102], [255, 143, 163],
-    [157, 139, 255], [111, 198, 255], [255, 178, 107],
-    [255, 120, 200], [120, 255, 150],
+    [214, 196, 120], [106, 168, 170], [196, 138, 110],
+    [139, 170, 142], [148, 143, 165], [231, 205, 160],
+    [176, 140, 170], [150, 170, 190],
   ];
 
   var $ = function (id) { return document.getElementById(id); };
@@ -912,27 +912,8 @@
   function buildBackground() {
     var w = bgCanvas.width, h = bgCanvas.height;
     bgCtx.setTransform(1, 0, 0, 1, 0, 0);
-    var g = bgCtx.createRadialGradient(w * 0.45, h * 0.4, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.8);
-    g.addColorStop(0, '#0a1428'); g.addColorStop(0.45, '#060b18'); g.addColorStop(1, '#02040a');
-    bgCtx.fillStyle = g; bgCtx.fillRect(0, 0, w, h);
-    var blooms = [
-      { x: 0.2, y: 0.15, c: 'rgba(70,200,255,0.10)' },
-      { x: 0.85, y: 0.25, c: 'rgba(255,110,170,0.08)' },
-      { x: 0.65, y: 0.9, c: 'rgba(110,242,192,0.07)' },
-    ];
-    for (var i = 0; i < blooms.length; i++) {
-      var b = blooms[i];
-      var bg = bgCtx.createRadialGradient(b.x * w, b.y * h, 0, b.x * w, b.y * h, 0.5 * Math.max(w, h));
-      bg.addColorStop(0, b.c); bg.addColorStop(1, 'rgba(0,0,0,0)');
-      bgCtx.fillStyle = bg; bgCtx.fillRect(0, 0, w, h);
-    }
-    var rng = mulberry32(424242);
-    bgCtx.fillStyle = 'rgba(200,225,255,0.5)';
-    for (var k = 0; k < 100; k++) {
-      bgCtx.globalAlpha = 0.08 + rng() * 0.28;
-      bgCtx.beginPath(); bgCtx.arc(rng() * w, rng() * h, (rng() * 1.2 + 0.3) * dpr, 0, Math.PI * 2); bgCtx.fill();
-    }
-    bgCtx.globalAlpha = 1;
+    bgCtx.fillStyle = '#0a0d13';
+    bgCtx.fillRect(0, 0, w, h);
   }
 
   /* ---------- シミュレーション --------------------------------- */
@@ -1212,17 +1193,17 @@
     roundRect(ctx, OX, OY, S, S, 24);
     ctx.save();
     ctx.clip();
-    var tg = ctx.createRadialGradient(OX + S * 0.5, OY + S * 0.46, S * 0.05, OX + S * 0.5, OY + S * 0.5, S * 0.72);
-    tg.addColorStop(0, 'rgba(20,34,58,0.55)');
-    tg.addColorStop(0.65, 'rgba(8,14,26,0.55)');
-    tg.addColorStop(1, 'rgba(4,7,14,0.75)');
-    ctx.fillStyle = tg;
+    ctx.fillStyle = '#0d1119';
     ctx.fillRect(OX, OY, S, S);
-
-    drawParticles();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.drawImage(particleLayer, 0, 0, W, H);
-    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+    ctx.lineWidth = 1;
+    for (var g = 1; g < 8; g++) {
+      var gx = OX + S * g / 8;
+      var gy = OY + S * g / 8;
+      ctx.beginPath(); ctx.moveTo(gx + 0.5, OY); ctx.lineTo(gx + 0.5, OY + S); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(OX, gy + 0.5); ctx.lineTo(OX + S, gy + 0.5); ctx.stroke();
+    }
+    drawParticlesFlat();
 
     drawBiggest(now);
     drawEffects();
@@ -1242,34 +1223,27 @@
     void now;
   }
 
-  function drawParticles() {
+  function drawParticlesFlat() {
     var sim = state.sim;
     if (!sim) return;
-    var ps = dpr * 0.62;
-    pctx.setTransform(ps, 0, 0, ps, 0, 0);
-    pctx.imageSmoothingEnabled = true;
-    pctx.globalCompositeOperation = 'destination-out';
-    pctx.fillStyle = 'rgba(0,0,0,0.10)';
-    pctx.fillRect(0, 0, W, H);
-    var base = Math.max(9, Math.min(15, S * 0.020));
-    var half = base / 2;
-    pctx.globalCompositeOperation = 'lighter';
-    var i, x, y, spr;
-    for (i = 0; i < sim.N; i++) {
-      if (!sim.alive[i]) continue;
-      spr = sprites[sim.type[i] % sprites.length];
-      x = OX + sim.px[i] * S; y = OY + sim.py[i] * S;
-      if (x < OX - base || x > OX + S + base || y < OY - base || y > OY + S + base) continue;
-      pctx.drawImage(spr, x - half, y - half, base, base);
-    }
-    var core = Math.max(2.8, base * 0.40), ch = core / 2;
-    pctx.globalCompositeOperation = 'source-over';
-    for (i = 0; i < sim.N; i++) {
-      if (!sim.alive[i]) continue;
-      spr = coreSprites[sim.type[i] % coreSprites.length];
-      x = OX + sim.px[i] * S; y = OY + sim.py[i] * S;
-      if (x < OX - base || x > OX + S + base || y < OY - base || y > OY + S + base) continue;
-      pctx.drawImage(spr, x - ch, y - ch, core, core);
+    var r = Math.max(1.8, Math.min(3.2, S * 0.0036));
+    for (var t = 0; t < sim.K; t++) {
+      var c = COLORS[t % COLORS.length];
+      var s0 = Math.floor(t * sim.N / sim.K);
+      var s1 = Math.floor((t + 1) * sim.N / sim.K);
+      ctx.beginPath();
+      for (var i = s0; i < s1; i++) {
+        if (!sim.alive[i]) continue;
+        var x = OX + sim.px[i] * S;
+        var y = OY + sim.py[i] * S;
+        ctx.moveTo(x + r, y);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+      }
+      ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.38)';
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
     }
   }
 
